@@ -3,7 +3,7 @@ project:
   title: "Three-Body Gravity" # Project title
   author: "Nils Gazarovs" # Your name
   discord: "" # Your discord username, for communication and automatically assigning you a Tapeout role (optional)
-  description: "Three-body gravity on VGA: masses from massless to 64, a chaos scene and a stable Sun + Earth orbit" # One line description of what your project does
+  description: "Three-body gravity on VGA: a chaos scene and a stable Sun + Earth orbit" # One line description of what your project does
   language: "Verilog" # other examples include SystemVerilog, Amaranth, VHDL, etc
   clock_hz: 25175000 # Clock frequency in Hz (VGA 640x480 pixel clock)
 
@@ -22,13 +22,13 @@ project:
 # This section is for the datasheet/website. Use descriptive names (e.g., RX, TX, MOSI, SCL, SEG_A, etc.).
 pinout:
   # Inputs
-  ui[0]: "menu"
-  ui[1]: "pause / menu: select body 0"
-  ui[2]: "menu: select body 1"
-  ui[3]: "scene (at reset) / menu: select body 2"
-  ui[4]: "speed bit 0 / menu: mass bit 0"
-  ui[5]: "speed bit 1 / menu: mass bit 1"
-  ui[6]: "speed bit 2 / menu: mass bit 2"
+  ui[0]: ""
+  ui[1]: "pause"
+  ui[2]: ""
+  ui[3]: "scene (read at reset)"
+  ui[4]: "speed bit 0"
+  ui[5]: "speed bit 1"
+  ui[6]: "speed bit 2"
   ui[7]: ""
 
   # Outputs

@@ -19,12 +19,9 @@
  * The pull of j on i is exactly minus the pull of i on j, so momentum is conserved.
  * Then every position moves by round(v >> 7).
  *
- * Controls (ui):  ui[0] = menu
- *   menu off: ui[1] pause, ui[6:4] speed, ui[3] scene (read at reset)
- *   menu on:  ui[1..3] select body 0..2, ui[6:4] mass code for the selected bodies
- * Mass code 0 = massless, 1..7 = mass 1, 2, 4 ... 64.
- * Speed 0..2: 1 step per frame, 3..7: about 3, 5, 9, 17, 34 per frame. (Lite: no frame skipping,
- * and bodies are drawn with their wrapped copies at the screen sides.)
+ * Controls (ui): ui[1] pause, ui[6:4] speed, ui[3] scene (read at reset).
+ * Masses are fixed per scene (lite: no menu). Mass code 0 = massless, 1..7 = mass 1, 2, 4 ... 64.
+ * Speed 0: 1 step every 4 frames, 1: every 2nd frame, 2: 1 per frame, 3..7: about 3, 5, 9, 17, 34 per frame.
  * Scenes: 0 = three-body chaos (masses 8, 8, 8), 1 = Sun + Earth (64, 1, massless).
  */
 
@@ -66,34 +63,15 @@ module tt_um_zarovs_nbody (
   wire vsync   = ~((vpos >= 10'd490) && (vpos < 10'd492));
 
   // ------------------------------------------------------------- controls
-  // Settings live in latches: transparent while their menu is active, held
-  // otherwise. During reset the mass latches load the scene's defaults.
-  wire menu = ui_in[0];
+  // Lite: no menu, the scene fixes the masses
   reg  scene;                      // captured during reset from ui[3]
   always @(posedge clk) if (!rst_n) scene <= ui_in[3];
 
-  reg [2:0] mcode0, mcode1, mcode2, spd;
-  reg       pause;
-  wire [2:0] def0 = scene ? 3'd7 : 3'd4;
-  wire [2:0] def1 = scene ? 3'd1 : 3'd4;
-  wire [2:0] def2 = scene ? 3'd0 : 3'd4;
-  /* verilator lint_off LATCH */
-  always @(*) begin
-    if (!rst_n)                 mcode0 = def0;
-    else if (menu && ui_in[1])  mcode0 = ui_in[6:4];
-  end
-  always @(*) begin
-    if (!rst_n)                 mcode1 = def1;
-    else if (menu && ui_in[2])  mcode1 = ui_in[6:4];
-  end
-  always @(*) begin
-    if (!rst_n)                 mcode2 = def2;
-    else if (menu && ui_in[3])  mcode2 = ui_in[6:4];
-  end
-  always @(*) begin
-    if (!menu) begin spd = ui_in[6:4]; pause = ui_in[1]; end
-  end
-  /* verilator lint_on LATCH */
+  wire [2:0] mcode0 = scene ? 3'd7 : 3'd4;
+  wire [2:0] mcode1 = scene ? 3'd1 : 3'd4;
+  wire [2:0] mcode2 = scene ? 3'd0 : 3'd4;
+  wire [2:0] spd = ui_in[6:4];
+  wire       pause = ui_in[1];
 
   // frame divider for the slow speeds
   reg [1:0] fc;
@@ -406,7 +384,7 @@ module tt_um_zarovs_nbody (
   assign uio_out = 8'h00;
   assign uio_oe  = 8'h00;
 
-  wire _unused = &{ena, ui_in[7], uio_in, lo[1:0], px[0][2:0], py[0][2:0], px[1][2:0], py[1][2:0],
+  wire _unused = &{ena, ui_in[7], ui_in[2], ui_in[0], uio_in, lo[1:0], px[0][2:0], py[0][2:0], px[1][2:0], py[1][2:0],
                    px[2][2:0], py[2][2:0], hq[9], hq[0], vq[9], vq[0], e3[5], 1'b0};
 
 endmodule

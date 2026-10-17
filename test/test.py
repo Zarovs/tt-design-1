@@ -100,21 +100,8 @@ async def test_sun_earth_scene(dut):
 
 
 @cocotb.test()
-async def test_menu_sets_mass(dut):
-    # paused; menu on (ui[0]), body 0 selected (ui[1]), mass code 1 on ui[6:4]:
-    # body 0 shrinks from an 8 px square (mass 8) to a 4 px one (mass 1)
-    beam = await start(dut, ui=0b0000_0010)
-    assert (await beam.goto(0, 266, 240))["rgb"] == YELLOW
-    dut.ui_in.value = 0b0001_0011
-    await beam.goto(0, 0, 300)
-    dut.ui_in.value = 0b0000_0010          # menu off, still paused
-    assert (await beam.goto(1, 266, 240))["rgb"] == BLACK
-    assert (await beam.goto(1, 270, 240))["rgb"] == YELLOW
-
-
-@cocotb.test()
 async def test_pause_holds(dut):
-    # paused (ui[1] with the menu off): the third body is still at its start
+    # paused (ui[1]): the third body is still at its start
     # position frames later
     beam = await start(dut, ui=0b0000_0010)
     assert (await beam.goto(3, 320, 50))["rgb"] == PINK

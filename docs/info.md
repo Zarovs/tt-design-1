@@ -1,6 +1,6 @@
 ## How it works
 
-Three bodies attract each other with inverse-square gravity, drawn live on a 640x480 VGA screen. Each body's mass can be set from massless up to 64, and there are two starting scenes: a chaotic three-body dance, and a Sun with an Earth in a stable orbit.
+Three bodies attract each other with inverse-square gravity, drawn live on a 640x480 VGA screen. There are two scenes: a chaotic three-body dance, and a Sun with an Earth in a stable orbit. The physics supports masses from massless up to 64; each scene fixes its own.
 
 **World.** The bodies live in a 256 x 256 world that wraps around at the edges (a torus). It is drawn at 2x scale in the middle of the screen. Positions are 8.3 fixed point; velocities are 12 bits with 10 fraction bits.
 
@@ -30,14 +30,10 @@ Connect a TinyVGA PMOD and a monitor, and clock the design at 25.175 MHz.
 - `ui[3]` low: three equal bodies (mass 8) in a chaotic dance. Expect captures, slingshots and ejections.
 - `ui[3]` high: Sun (mass 64, yellow) with an Earth (mass 1, cyan) on a stable, nearly circular orbit. The pink body is massless and starts at the bottom edge of the screen, slowly falling towards the Sun.
 
-**Controls** with the menu off (`ui[0]` low):
+**Controls:**
 
 - `ui[1]`: pause.
 - `ui[6:4]`: speed. 0..2 = one step per frame (default), 3..7 = about 3, 5, 9, 17 and 34 steps per frame.
-
-**Menu** (`ui[0]` high): `ui[1]`, `ui[2]`, `ui[3]` select bodies 0, 1, 2 (several at once is fine), and `ui[6:4]` sets the selected bodies' mass code: 0 = massless, 1..7 = mass 1, 2, 4, 8, 16, 32, 64. The simulation keeps running. When you turn the menu off, the speed and pause switches take effect again.
-
-Try giving the massless body some mass in the Sun + Earth scene, or making one body in the chaos scene massless.
 
 ## External hardware
 
