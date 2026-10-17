@@ -30,7 +30,7 @@ module tb ();
   wire VGND = 1'b0;
 `endif
 
-  tt_um_zarovs_solar_system user_project (
+  tt_um_zarovs_nbody user_project (
 
       // Include power ports for the Gate Level test:
 `ifdef GL_TEST

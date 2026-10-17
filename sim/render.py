@@ -16,9 +16,9 @@ from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-BUILD = os.path.join(HERE, "obj_dir")
+BUILD = os.path.join(HERE, "obj_dir_" + os.environ.get("TT_TOP", "tt_um_zarovs_solar_system"))
 OUT = os.path.join(HERE, "out")
-TOP = "tt_um_zarovs_solar_system"
+TOP = os.environ.get("TT_TOP", "tt_um_zarovs_solar_system")
 
 
 def build():
@@ -28,7 +28,8 @@ def build():
         return exe
     subprocess.run(
         ["verilator", "--cc", "--exe", "--build", "-O3", "-Wno-fatal", "-Wno-lint",
-         "--top-module", TOP, "-Mdir", BUILD, *srcs],
+         "--top-module", TOP, "-Mdir", BUILD,
+         "-CFLAGS", f'-DVTOP_H=\\"V{TOP}.h\\" -DVTOP=V{TOP}', *srcs],
         check=True, stdout=subprocess.DEVNULL)
     return exe
 

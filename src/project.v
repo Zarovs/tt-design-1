@@ -2,42 +2,42 @@
  * Copyright (c) 2026 Nils Gazarovs
  * SPDX-License-Identifier: Apache-2.0
  *
- * Solar system simulator for Tiny Tapeout (1x1 tile).
- * 640x480 @ 60 Hz VGA (25.175 MHz pixel clock), TinyVGA PMOD pinout.
+ * Three-body gravity simulator for Tiny Tapeout (1x1 tile), VGA 640x480.
  *
- * No framebuffer: every pixel is computed as the beam passes.
- *  - Squared distance to the screen centre is tracked incrementally
- *    (adders only), which draws the sun and the orbit rings.
- *  - Planets move on Minsky circles (x -= y>>>k; y += x>>>k), updated
- *    during vertical blanking. These orbits are exactly periodic and never decay.
- *  - Planet sprites are small disks tested in a 16x16 window.
- *  - A 19-bit LFSR, restarted every frame, draws a fixed starfield.
+ * Real inverse-square gravity between three bodies, masses set live with
+ * the switches. Everything is bit-serial: the state registers rotate past
+ * two 1-bit adders (one per axis) during vertical blanking.
  *
- * Inputs:
- *   ui[0]   pause
- *   ui[2:1] speed: 1, 2, 4 or 8 orbit steps per frame
- *   ui[3]   hide orbit rings
- *   ui[4]   hide stars
+ * World: 256 x 256 torus, positions 8.3 fixed point, drawn at 2x scale
+ * centred on the screen. Velocities: 12 bits, 10 fraction bits.
+ *
+ * Per ordered pair (i, j), with dx, dy the integer part of r_j - r_i:
+ *   L   = max(|dx|,|dy|) + 3/8 min      (octagonal distance ~ |r|)
+ *   e   = leading one of L (min 2), m = next 2 bits
+ *   c   = mass_j * LUT[m]               (LUT ~ 8 / (1 + m/4)^3)
+ *   v_i += (c * d) >> (3e - 10)         (sum of rounded shifts, one per bit of c)
+ * then all positions += round(v >> 7). Bit-exact with model/nbody_model.py hw_step.
+ *
+ * Inputs:  ui[1:0] mass of body 0 - 1, ui[3:2] body 1, ui[5:4] body 2,
+ *          ui[6] pause, uio[2:0] speed (steps per frame = 2^(uio ^ 3), default 8)
+ * Outputs: TinyVGA PMOD on uo_out.
  */
 
 `default_nettype none
 
-module tt_um_zarovs_solar_system (
-    input  wire [7:0] ui_in,    // Dedicated inputs
-    output wire [7:0] uo_out,   // Dedicated outputs
-    input  wire [7:0] uio_in,   // IOs: Input path
-    output wire [7:0] uio_out,  // IOs: Output path
-    output wire [7:0] uio_oe,   // IOs: Enable path (active high: 0=input, 1=output)
-    input  wire       ena,      // always 1 when the design is powered, so you can ignore it
-    input  wire       clk,      // clock
-    input  wire       rst_n     // reset_n - low to reset
+module tt_um_zarovs_nbody (
+    input  wire [7:0] ui_in,
+    output wire [7:0] uo_out,
+    input  wire [7:0] uio_in,
+    output wire [7:0] uio_out,
+    output wire [7:0] uio_oe,
+    input  wire       ena,
+    input  wire       clk,
+    input  wire       rst_n
 );
 
-  // ---------------------------------------------------------------- inputs
-  wire       pause      = ui_in[0];
-  wire [1:0] speed      = ui_in[2:1];
-  wire       rings_off  = ui_in[3];
-  wire       stars_off  = ui_in[4];
+  localparam P = 11;   // position width (8.3)
+  localparam V = 12;   // velocity width (2.10)
 
   // ------------------------------------------------------------ VGA timing
   reg [9:0] hpos, vpos;
@@ -60,147 +60,216 @@ module tt_um_zarovs_solar_system (
   wire hsync   = ~((hpos >= 10'd656) && (hpos < 10'd752));
   wire vsync   = ~((vpos >= 10'd490) && (vpos < 10'd492));
 
-  // Pixel position relative to the sun at (320, 240)
-  wire signed [10:0] dx = $signed({1'b0, hpos}) - 11'sd320;
-  wire signed [10:0] dy = $signed({1'b0, vpos}) - 11'sd240;
+  // ------------------------------------------------------------- inputs
+  wire [2:0] mass0 = {1'b0, ui_in[1:0]} + 3'd1;   // 1..4
+  wire [2:0] mass1 = {1'b0, ui_in[3:2]} + 3'd1;
+  wire [2:0] mass2 = {1'b0, ui_in[5:4]} + 3'd1;
+  wire       pause = ui_in[6];
+  wire [2:0] spd   = uio_in[2:0] ^ 3'd3;
+  wire [2:0] spd_c = (spd == 3'd7) ? 3'd6 : spd;   // at most 64 steps per frame
 
-  // ------------------------------------------- incremental dx^2 + dy^2
-  // d2 always equals dx*dx + dy*dy for the current (hpos, vpos).
-  // row holds the value at hpos == 0 of the current line.
-  localparam [18:0] D2_ORIGIN = 19'd160000;  // 320^2 + 240^2
-  reg  [18:0] d2, row;
-  wire [18:0] dx_step = {{7{dx[10]}}, dx, 1'b1};   // 2*dx + 1
-  wire [18:0] dy_step = {{7{dy[10]}}, dy, 1'b1};   // 2*dy + 1
-  wire [18:0] row_next = row + dy_step;
+  // ------------------------------------------------------- body state
+  // Rotating registers, LSB first. Index: body 0..2.
+  reg [P-1:0] px [0:2];
+  reg [P-1:0] py [0:2];
+  reg [V-1:0] vx [0:2];
+  reg [V-1:0] vy [0:2];
 
-  always @(posedge clk) begin
-    if (!rst_n) begin
-      d2  <= D2_ORIGIN;
-      row <= D2_ORIGIN;
-    end else if (hlast) begin
-      if (vlast) begin
-        d2  <= D2_ORIGIN;
-        row <= D2_ORIGIN;
-      end else begin
-        d2  <= row_next;
-        row <= row_next;
-      end
-    end else begin
-      d2 <= d2 + dx_step;
-    end
-  end
+  // ------------------------------------------------------ controller
+  localparam S_IDLE = 2'd0, S_D = 2'd1, S_A = 2'd2, S_P = 2'd3;
+  reg [1:0] state;
+  reg [3:0] t;          // bit index within a pass
+  reg [2:0] pair;       // 0..5: (0,1) (0,2) (1,0) (1,2) (2,0) (2,1)
+  reg [2:0] k;          // bit of c being applied
+  reg [1:0] pb;         // body in the position phase
+  reg [6:0] steps_left;
+  reg       cx, cy;     // carries of the two serial adders
+  reg [7:0] dxr, dyr;   // integer part of r_j - r_i (shifted in LSB first)
 
-  // ----------------------------------------------------- frame counter
-  reg [5:0] frame;
-  always @(posedge clk) begin
-    if (!rst_n) frame <= 6'd0;
-    else if (hlast && vlast) frame <= frame + 6'd1;
-  end
-
-  // ------------------------------------------------- orbit stepping
-  // Orbits are updated bit-serially by one shared 1-bit adder during
-  // vertical blanking, instead of two full-width adders per body.
-  // One Minsky step for one body is two passes over its W bits:
-  //   pass 0: x = x - (y >>> K)      pass 1: y = y + (x >>> K)
-  // Both registers rotate right one bit per clock (LSB first). The bit
-  // y[i+K] needed at clock i sits at position K of the rotating register;
-  // once i+K >= W it is the sign bit, captured at clock 0.
-  // A full step for all 5 bodies takes 2*(13+15+17+10+18) = 146 clocks, so
-  // even 8 steps (1168 clocks) finish inside blanking (36000 clocks).
-  localparam NB = 5;   // bodies: 0 mercury, 1 venus, 2 earth, 3 moon, 4 mars
-
-  reg       busy;
-  reg [2:0] body;
-  reg       pass;
-  reg [4:0] bit_i;
-  reg [3:0] steps_left;
-  reg       carry, sign;
-
-  reg [4:0] w_cur, wk_cur;   // W and W-K of the current body
+  reg [1:0] bi, bj;
   always @(*) begin
-    case (body)
-      3'd0:    begin w_cur = 5'd13; wk_cur = 5'd8;  end
-      3'd1:    begin w_cur = 5'd15; wk_cur = 5'd9;  end
-      3'd2:    begin w_cur = 5'd17; wk_cur = 5'd10; end
-      3'd3:    begin w_cur = 5'd10; wk_cur = 5'd6;  end
-      default: begin w_cur = 5'd18; wk_cur = 5'd10; end
+    case (pair)
+      3'd0:    begin bi = 2'd0; bj = 2'd1; end
+      3'd1:    begin bi = 2'd0; bj = 2'd2; end
+      3'd2:    begin bi = 2'd1; bj = 2'd0; end
+      3'd3:    begin bi = 2'd1; bj = 2'd2; end
+      3'd4:    begin bi = 2'd2; bj = 2'd0; end
+      default: begin bi = 2'd2; bj = 2'd1; end
     endcase
   end
 
-  wire [NB-1:0] a_bits, tap_bits, sgn_bits;
-  wire a_cur = a_bits[body];
-  wire tb  = (bit_i < wk_cur) ? tap_bits[body] : sign;   // (y >>> K) bit i
-  wire bb  = pass ? tb : ~tb;                            // subtract on pass 0
-  wire cin = (bit_i == 5'd0) ? ~pass : carry;            // +1 for two's complement
-  wire new_bit = a_cur ^ bb ^ cin;
+  wire [2:0] mass_j = (bj == 2'd0) ? mass0 : (bj == 2'd1) ? mass1 : mass2;
 
-  wire last_bit  = (bit_i == w_cur - 5'd1);
-  wire last_body = (body == NB - 1);
+  // ---------------------------------------------------- 1/r^3 factor
+  // one's complement |d| (off by one for negatives, as in the model)
+  wire [6:0] ax = dxr[6:0] ^ {7{dxr[7]}};
+  wire [6:0] ay = dyr[6:0] ^ {7{dyr[7]}};
+  wire       xbig = ax >= ay;
+  wire [6:0] hi = xbig ? ax : ay;
+  wire [6:0] lo = xbig ? ay : ax;
+  wire [7:0] oct = {1'b0, hi} + {3'b000, lo[6:2]} + {4'b0000, lo[6:3]};
 
+  reg [2:0] e;       // leading one of oct, at least 2
+  reg [1:0] mant;
+  always @(*) begin
+    casez (oct)
+      8'b1???????: begin e = 3'd7; mant = oct[6:5]; end
+      8'b01??????: begin e = 3'd6; mant = oct[5:4]; end
+      8'b001?????: begin e = 3'd5; mant = oct[4:3]; end
+      8'b0001????: begin e = 3'd4; mant = oct[3:2]; end
+      8'b00001???: begin e = 3'd3; mant = oct[2:1]; end
+      8'b000001??: begin e = 3'd2; mant = oct[1:0]; end
+      default:     begin e = 3'd2; mant = 2'd0;     end
+    endcase
+  end
+
+  reg [2:0] lut;
+  always @(*) begin
+    case (mant)
+      2'd0:    lut = 3'd6;
+      2'd1:    lut = 3'd3;
+      2'd2:    lut = 3'd2;
+      default: lut = 3'd1;
+    endcase
+  end
+  wire [5:0] cfac6 = mass_j * lut;                  // 0..24
+  wire [4:0] cfac  = cfac6[4:0];
+
+  // shift for bit k of c: 3e - 10 - k, range -8..11
+  wire [5:0] e3 = {2'b00, e, 1'b0} + {3'b000, e};
+  wire signed [5:0] sh = $signed(e3) - 6'sd10 - $signed({3'b000, k});
+  wire signed [5:0] q  = $signed({2'b00, t}) + sh;   // tap index into dxr/dyr
+  wire signed [5:0] qr = sh - 6'sd1;                  // rounding bit index
+
+  function automatic tapd(input [7:0] d, input signed [5:0] idx);
+    begin
+      if (idx < 0)      tapd = 1'b0;
+      else if (idx > 7) tapd = d[7];
+      else              tapd = d[idx[2:0]];
+    end
+  endfunction
+
+  wire kon = cfac[k];
+
+  // --------------------------------------------- serial adder operands
+  wire [V-1:0] vxb = vx[pb];
+  wire [V-1:0] vyb = vy[pb];
+  wire [4:0]   tv  = {1'b0, t} + 5'd7;              // velocity tap in phase P
+
+  reg a_x, b_x, a_y, b_y, c0x, c0y;   // operands and first-bit carry-ins
+  always @(*) begin
+    a_x = 1'b0; b_x = 1'b0; a_y = 1'b0; b_y = 1'b0; c0x = 1'b0; c0y = 1'b0;
+    case (state)
+      S_D: begin   // r_j - r_i = r_j + ~r_i + 1
+        a_x = px[bj][0]; b_x = ~px[bi][0];
+        a_y = py[bj][0]; b_y = ~py[bi][0];
+        c0x = 1'b1;      c0y = 1'b1;
+      end
+      S_A: begin   // v_i += round(d >>> sh) when bit k of c is set
+        a_x = vx[bi][0];
+        a_y = vy[bi][0];
+        b_x = kon & tapd(dxr, q);
+        b_y = kon & tapd(dyr, q);
+        c0x = kon & (sh > 0) & tapd(dxr, qr);
+        c0y = kon & (sh > 0) & tapd(dyr, qr);
+      end
+      S_P: begin   // pos += round(v >>> 7)
+        a_x = px[pb][0];
+        a_y = py[pb][0];
+        b_x = (tv > 5'd11) ? vxb[V-1] : vxb[tv[3:0]];
+        b_y = (tv > 5'd11) ? vyb[V-1] : vyb[tv[3:0]];
+        c0x = vxb[6];
+        c0y = vyb[6];
+      end
+      default: ;
+    endcase
+  end
+
+  wire first = (t == 4'd0);
+  wire cin_x = first ? c0x : cx;
+  wire cin_y = first ? c0y : cy;
+  wire sx  = a_x ^ b_x ^ cin_x;
+  wire sy  = a_y ^ b_y ^ cin_y;
+  wire cox = (a_x & b_x) | (a_x & cin_x) | (b_x & cin_x);
+  wire coy = (a_y & b_y) | (a_y & cin_y) | (b_y & cin_y);
+
+  wire last_p = (t == P - 1);
+  wire last_v = (t == V - 1);
+  wire start  = !pause && (vpos == 10'd480) && (hpos == 10'd0);
+
+  integer n;
   always @(posedge clk) begin
     if (!rst_n) begin
-      busy <= 1'b0; body <= 3'd0; pass <= 1'b0; bit_i <= 5'd0;
-      steps_left <= 4'd0; carry <= 1'b0; sign <= 1'b0;
-    end else if (!busy) begin
-      if (!pause && vpos == 10'd480 && hpos == 10'd0) begin
-        busy <= 1'b1;
-        steps_left <= (4'd1 << speed) - 4'd1;
-      end
+      state <= S_IDLE; t <= 4'd0; pair <= 3'd0; k <= 3'd0; pb <= 2'd0;
+      steps_left <= 7'd0; cx <= 1'b0; cy <= 1'b0; dxr <= 8'd0; dyr <= 8'd0;
+      // default scene (model/nbody_model.py hw_scene)
+      px[0] <= -11'sd200; py[0] <= 11'sd0;    vx[0] <= -12'sd210; vy[0] <= -12'sd290;
+      px[1] <= 11'sd200;  py[1] <= 11'sd0;    vx[1] <= -12'sd210; vy[1] <= 12'sd290;
+      px[2] <= 11'sd0;    py[2] <= -11'sd760; vx[2] <= 12'sd420;  vy[2] <= 12'sd0;
     end else begin
-      carry <= (a_cur & bb) | (a_cur & cin) | (bb & cin);
-      if (bit_i == 5'd0) sign <= sgn_bits[body];
-      if (!last_bit) begin
-        bit_i <= bit_i + 5'd1;
-      end else begin
-        bit_i <= 5'd0;
-        pass  <= ~pass;
-        if (pass) begin
-          if (!last_body) begin
-            body <= body + 3'd1;
-          end else begin
-            body <= 3'd0;
-            if (steps_left == 4'd0) busy <= 1'b0;
-            else steps_left <= steps_left - 4'd1;
-          end
+      cx <= cox;
+      cy <= coy;
+      case (state)
+        S_IDLE: if (start) begin
+          state <= S_D; t <= 4'd0; pair <= 3'd0;
+          steps_left <= (7'd1 << spd_c) - 7'd1;
         end
-      end
+
+        S_D: begin
+          // rotate both bodies' positions; keep the integer bits of the difference
+          for (n = 0; n < 3; n = n + 1)
+            if (n[1:0] == bi || n[1:0] == bj) begin
+              px[n] <= {px[n][0], px[n][P-1:1]};
+              py[n] <= {py[n][0], py[n][P-1:1]};
+            end
+          if (t >= 4'd3) begin
+            dxr <= {sx, dxr[7:1]};
+            dyr <= {sy, dyr[7:1]};
+          end
+          if (last_p) begin state <= S_A; t <= 4'd0; k <= 3'd0; end
+          else t <= t + 4'd1;
+        end
+
+        S_A: begin
+          for (n = 0; n < 3; n = n + 1)
+            if (n[1:0] == bi) begin
+              vx[n] <= {sx, vx[n][V-1:1]};
+              vy[n] <= {sy, vy[n][V-1:1]};
+            end
+          if (last_v) begin
+            t <= 4'd0;
+            if (k != 3'd4) k <= k + 3'd1;
+            else if (pair != 3'd5) begin state <= S_D; pair <= pair + 3'd1; end
+            else begin state <= S_P; pb <= 2'd0; end
+          end else t <= t + 4'd1;
+        end
+
+        S_P: begin
+          for (n = 0; n < 3; n = n + 1)
+            if (n[1:0] == pb) begin
+              px[n] <= {sx, px[n][P-1:1]};
+              py[n] <= {sy, py[n][P-1:1]};
+            end
+          if (last_p) begin
+            t <= 4'd0;
+            if (pb != 2'd2) pb <= pb + 2'd1;
+            else if (steps_left == 7'd0) state <= S_IDLE;
+            else begin steps_left <= steps_left - 7'd1; state <= S_D; pair <= 3'd0; end
+          end else t <= t + 4'd1;
+        end
+      endcase
     end
   end
 
-  // px/py are the integer pixel offsets from the sun.
-  wire signed [10:0] mer_px, mer_py, ven_px, ven_py, ear_px, ear_py;
-  wire signed [10:0] moo_ox, moo_oy, mar_px, mar_py;
+  // ------------------------------------------------------------ drawing
+  // Body screen position: (320 + 2x, 240 + 2y) with x, y the signed integer parts.
+  wire signed [10:0] sxp = $signed({1'b0, hpos}) - 11'sd320;
+  wire signed [10:0] syp = $signed({1'b0, vpos}) - 11'sd240;
 
-  // Fixed point with F = K + 1 fraction bits: enough that truncation in
-  // the shifts keeps each planet within about 1.5 px of its ring.
-  // The period of each orbit is about 2*pi*2^K steps.
-  //                     width  K      F      start x         start y        radius
-  orbit_serial #(.W(13), .K(5), .F(6), .X0(13'sd3584),   .Y0(13'sd0)) u_mercury (
-      .clk(clk), .rst_n(rst_n), .sel(busy && body == 3'd0), .pass(pass), .new_bit(new_bit),
-      .a(a_bits[0]), .tap(tap_bits[0]), .sgn(sgn_bits[0]), .px(mer_px), .py(mer_py));  // 56
-  orbit_serial #(.W(15), .K(6), .F(7), .X0(15'sd0),      .Y0(15'sd12800)) u_venus (
-      .clk(clk), .rst_n(rst_n), .sel(busy && body == 3'd1), .pass(pass), .new_bit(new_bit),
-      .a(a_bits[1]), .tap(tap_bits[1]), .sgn(sgn_bits[1]), .px(ven_px), .py(ven_py));  // 100
-  orbit_serial #(.W(17), .K(7), .F(8), .X0(-17'sd36084), .Y0(-17'sd13134)) u_earth (
-      .clk(clk), .rst_n(rst_n), .sel(busy && body == 3'd2), .pass(pass), .new_bit(new_bit),
-      .a(a_bits[2]), .tap(tap_bits[2]), .sgn(sgn_bits[2]), .px(ear_px), .py(ear_py));  // 150
-  orbit_serial #(.W(10), .K(4), .F(5), .X0(10'sd448),    .Y0(10'sd0)) u_moon (
-      .clk(clk), .rst_n(rst_n), .sel(busy && body == 3'd3), .pass(pass), .new_bit(new_bit),
-      .a(a_bits[3]), .tap(tap_bits[3]), .sgn(sgn_bits[3]), .px(moo_ox), .py(moo_oy));  // 14 around earth
-  orbit_serial #(.W(18), .K(8), .F(9), .X0(18'sd52480),  .Y0(-18'sd90898)) u_mars (
-      .clk(clk), .rst_n(rst_n), .sel(busy && body == 3'd4), .pass(pass), .new_bit(new_bit),
-      .a(a_bits[4]), .tap(tap_bits[4]), .sgn(sgn_bits[4]), .px(mar_px), .py(mar_py));  // 205
-
-  wire signed [10:0] moo_px = ear_px + moo_ox;
-  wire signed [10:0] moo_py = ear_py + moo_oy;
-
-  // ---------------------------------------------------- planet sprites
-  // A body covers the pixel if the offset is inside a 16x16 window and
-  // inside a disk with the given radius.
-  function automatic [6:0] sq4(input [3:0] v);   // square of a 4-bit signed value
+  function automatic [6:0] sq4(input [3:0] v);
     reg [3:0] a;
     begin
-      a = v[3] ? (~v + 4'd1) : v;                  // |v|, 0..8 (-8 gives 4'b1000 = 8)
+      a = v[3] ? (~v + 4'd1) : v;
       sq4 = {3'b000, a} * {3'b000, a};
     end
   endfunction
@@ -214,137 +283,51 @@ module tt_um_zarovs_solar_system (
     end
   endfunction
 
-  // r2 = R*R + R gives a nicely rounded disk of radius R
-  wire on_mercury = disk(dx - mer_px, dy + mer_py, 7'd12);  // R = 3
-  wire on_venus   = disk(dx - ven_px, dy + ven_py, 7'd30);  // R = 5
-  wire on_earth   = disk(dx - ear_px, dy + ear_py, 7'd30);  // R = 5
-  wire on_moon    = disk(dx - moo_px, dy + moo_py, 7'd6);   // R = 2
-  wire on_mars    = disk(dx - mar_px, dy + mar_py, 7'd20);  // R = 4
+  // radius 2 + mass (3..6 px), as r^2 + r
+  function automatic [6:0] rr(input [2:0] m);
+    case (m)
+      3'd1:    rr = 7'd12;
+      3'd2:    rr = 7'd20;
+      3'd3:    rr = 7'd30;
+      default: rr = 7'd42;
+    endcase
+  endfunction
 
-  // ---------------------------------------------------------- the sun
-  wire dither   = hpos[0] ^ vpos[0] ^ frame[0];        // shimmering checkerboard
-  wire sun_core = d2 < 19'd256;                         // r 16
-  wire sun_body = d2 < 19'd400;                         // r 20
-  wire sun_rim  = d2 < 19'd576;                         // r 24
-  wire corona   = d2 < 19'd784;                         // r 28
+  wire signed [10:0] o0x = sxp - {{2{px[0][P-1]}}, px[0][P-1:3], 1'b0};
+  wire signed [10:0] o0y = syp - {{2{py[0][P-1]}}, py[0][P-1:3], 1'b0};
+  wire signed [10:0] o1x = sxp - {{2{px[1][P-1]}}, px[1][P-1:3], 1'b0};
+  wire signed [10:0] o1y = syp - {{2{py[1][P-1]}}, py[1][P-1:3], 1'b0};
+  wire signed [10:0] o2x = sxp - {{2{px[2][P-1]}}, px[2][P-1:3], 1'b0};
+  wire signed [10:0] o2y = syp - {{2{py[2][P-1]}}, py[2][P-1:3], 1'b0};
 
-  // ------------------------------------------------------ orbit rings
-  // |d2 - R^2| <= R  is a ring about one pixel wide
-  wire ring = (d2 >= 19'd3080  && d2 <= 19'd3192)   ||   // 56
-              (d2 >= 19'd9900  && d2 <= 19'd10100)  ||   // 100
-              (d2 >= 19'd22350 && d2 <= 19'd22650)  ||   // 150
-              (d2 >= 19'd41820 && d2 <= 19'd42230);      // 205
+  wire on0 = disk(o0x, o0y, rr(mass0));
+  wire on1 = disk(o1x, o1y, rr(mass1));
+  wire on2 = disk(o2x, o2y, rr(mass2));
 
-  // --------------------------------------------------------- starfield
-  // 19-bit maximal LFSR (x^19 + x^18 + x^17 + x^14 + 1), restarted every
-  // frame and advanced 9 steps per visible pixel, so neighbouring pixels
-  // share no tested bits (one step per pixel draws dashes instead of dots).
-  // The period 2^19-1 is prime, so a 9-step leap still takes 524287 pixels
-  // to repeat, longer than a frame (307200 pixels).
-  reg [18:0] lfsr;
-  reg [18:0] lfsr_leap;
-  integer i;
-  always @(*) begin
-    lfsr_leap = lfsr;
-    for (i = 0; i < 9; i = i + 1)
-      lfsr_leap = {lfsr_leap[17:0], lfsr_leap[18] ^ lfsr_leap[17] ^ lfsr_leap[16] ^ lfsr_leap[13]};
-  end
+  // edges of the 512-pixel-wide world
+  wire border = (hpos == 10'd64) || (hpos == 10'd575);
 
-  always @(posedge clk) begin
-    if (!rst_n || (hlast && vlast))
-      lfsr <= 19'h5A5A5;
-    else if (visible)
-      lfsr <= lfsr_leap;
-  end
-
-  // 9 tested bits: 1 star in 512 pixels.
-  wire star = &{lfsr[18], lfsr[16], lfsr[14], lfsr[12], lfsr[10],
-                lfsr[8],  lfsr[6],  lfsr[4],  lfsr[2]};
-  wire twinkle = frame[5] ^ lfsr[5];
-
-  // ------------------------------------------------------ colour mixer
   reg [5:0] rgb;   // {R1 R0, G1 G0, B1 B0}
   always @(*) begin
-    if (on_moon)               rgb = 6'b10_10_10;                    // grey
-    else if (on_earth)         rgb = 6'b00_01_11;                    // blue
-    else if (on_mercury)       rgb = 6'b10_01_01;                    // brown-grey
-    else if (on_venus)         rgb = 6'b11_11_10;                    // pale yellow
-    else if (on_mars)          rgb = 6'b11_01_00;                    // red
-    else if (sun_core)         rgb = 6'b11_11_10;                    // white-yellow
-    else if (sun_body)         rgb = 6'b11_11_00;                    // yellow
-    else if (sun_rim)          rgb = 6'b11_10_00;                    // orange
-    else if (corona && dither) rgb = 6'b10_01_00;                    // glow
-    else if (ring && !rings_off) rgb = 6'b00_00_01;                  // dark blue
-    else if (star && !stars_off) begin
-      case ({lfsr[3], lfsr[1]})
-        2'b00:   rgb = 6'b01_01_01;
-        2'b01:   rgb = 6'b01_01_10;
-        2'b10:   rgb = 6'b10_10_10;
-        default: rgb = twinkle ? 6'b11_11_11 : 6'b01_01_01;
-      endcase
-    end
-    else                       rgb = 6'b00_00_00;
+    if (on0)         rgb = 6'b11_11_00;   // yellow
+    else if (on1)    rgb = 6'b00_11_11;   // cyan
+    else if (on2)    rgb = 6'b11_01_11;   // pink
+    else if (border) rgb = 6'b00_00_01;
+    else             rgb = 6'b00_00_00;
   end
 
-  // ---------------------------------------------------------- outputs
-  // TinyVGA PMOD: uo_out = {HSYNC, B0, G0, R0, VSYNC, B1, G1, R1}
   reg [7:0] out_r;
   always @(posedge clk) begin
-    if (!rst_n) begin
-      out_r <= 8'b1000_1000;   // syncs idle high, black
-    end else begin
-      out_r <= visible ? {hsync, rgb[0], rgb[2], rgb[4], vsync, rgb[1], rgb[3], rgb[5]}
-                       : {hsync, 3'b000, vsync, 3'b000};
-    end
+    if (!rst_n) out_r <= 8'b1000_1000;
+    else out_r <= visible ? {hsync, rgb[0], rgb[2], rgb[4], vsync, rgb[1], rgb[3], rgb[5]}
+                          : {hsync, 3'b000, vsync, 3'b000};
   end
 
   assign uo_out  = out_r;
   assign uio_out = 8'h00;
   assign uio_oe  = 8'h00;
 
-  wire _unused = &{ena, uio_in, ui_in[7:5], 1'b0};
+  wire _unused = &{ena, ui_in[7], uio_in[7:3], cfac6[5], lo[1:0], px[0][2:0], py[0][2:0],
+                   px[1][2:0], py[1][2:0], px[2][2:0], py[2][2:0], 1'b0};
 
-endmodule
-
-// Orbit state for one body, updated bit-serially by the shared adder.
-// While sel is high both registers rotate right one bit per clock; the
-// register being updated (x on pass 0, y on pass 1) takes new_bit at its MSB.
-module orbit_serial #(
-    parameter W = 12,
-    parameter K = 5,
-    parameter F = 6,
-    parameter signed [W-1:0] X0 = 0,
-    parameter signed [W-1:0] Y0 = 0
-) (
-    input  wire               clk,
-    input  wire               rst_n,
-    input  wire               sel,
-    input  wire               pass,
-    input  wire               new_bit,
-    output wire               a,      // current bit of the register being updated
-    output wire               tap,    // bit K of the other register
-    output wire               sgn,    // sign of the other register
-    output wire signed [10:0] px,
-    output wire signed [10:0] py
-);
-  reg [W-1:0] x, y;
-
-  always @(posedge clk) begin
-    if (!rst_n) begin
-      x <= X0;
-      y <= Y0;
-    end else if (sel) begin
-      x <= {pass ? x[0] : new_bit, x[W-1:1]};
-      y <= {pass ? new_bit : y[0], y[W-1:1]};
-    end
-  end
-
-  assign a   = pass ? y[0]   : x[0];
-  assign tap = pass ? x[K]   : y[K];
-  assign sgn = pass ? x[W-1] : y[W-1];
-
-  assign px = {{(11-(W-F)){x[W-1]}}, x[W-1:F]};
-  assign py = {{(11-(W-F)){y[W-1]}}, y[W-1:F]};
-
-  wire _unused = &{x[F-1:0], y[F-1:0], 1'b0};
 endmodule

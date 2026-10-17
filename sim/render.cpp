@@ -3,7 +3,7 @@
 // so a wrong sync position shows up as a shifted or torn picture.
 //
 // Usage: render <ui_in> <first_frame> <num_frames> <every> <out_prefix>
-#include "Vtt_um_zarovs_solar_system.h"
+#include VTOP_H
 #include "verilated.h"
 #include <cstdio>
 #include <cstdlib>
@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
   const char *prefix = argv[5];
 
   Verilated::commandArgs(argc, argv);
-  auto *top = new Vtt_um_zarovs_solar_system;
+  auto *top = new VTOP;
   top->ui_in = ui;
   top->uio_in = 0;
   top->ena = 1;

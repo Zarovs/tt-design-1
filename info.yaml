@@ -1,9 +1,9 @@
 # Tiny Tapeout project information
 project:
-  title: "Solar System" # Project title
+  title: "Three-Body Gravity" # Project title
   author: "Nils Gazarovs" # Your name
   discord: "" # Your discord username, for communication and automatically assigning you a Tapeout role (optional)
-  description: "VGA solar system: sun, four orbiting planets, a moon and a starfield" # One line description of what your project does
+  description: "Real inverse-square gravity between three bodies on VGA, masses set with switches" # One line description of what your project does
   language: "Verilog" # other examples include SystemVerilog, Amaranth, VHDL, etc
   clock_hz: 25175000 # Clock frequency in Hz (VGA 640x480 pixel clock)
 
@@ -11,7 +11,7 @@ project:
   tiles: "1x1" # Valid values: 1x1, 1x2, 2x2, 3x2, 4x2, 6x2 or 8x2
 
   # Your top module name must start with "tt_um_". Make it unique by including your github username:
-  top_module:  "tt_um_zarovs_solar_system"
+  top_module:  "tt_um_zarovs_nbody"
 
   # List your project's source files here.
   # Source files must be in ./src and you must list each source file separately, one per line.
@@ -22,13 +22,13 @@ project:
 # This section is for the datasheet/website. Use descriptive names (e.g., RX, TX, MOSI, SCL, SEG_A, etc.).
 pinout:
   # Inputs
-  ui[0]: "pause"
-  ui[1]: "speed bit 0"
-  ui[2]: "speed bit 1"
-  ui[3]: "hide orbit rings"
-  ui[4]: "hide stars"
-  ui[5]: ""
-  ui[6]: ""
+  ui[0]: "mass 0 bit 0"
+  ui[1]: "mass 0 bit 1"
+  ui[2]: "mass 1 bit 0"
+  ui[3]: "mass 1 bit 1"
+  ui[4]: "mass 2 bit 0"
+  ui[5]: "mass 2 bit 1"
+  ui[6]: "pause"
   ui[7]: ""
 
   # Outputs
@@ -42,9 +42,9 @@ pinout:
   uo[7]: "HSYNC"
 
   # Bidirectional pins
-  uio[0]: ""
-  uio[1]: ""
-  uio[2]: ""
+  uio[0]: "speed bit 0 (input)"
+  uio[1]: "speed bit 1 (input)"
+  uio[2]: "speed bit 2 (input)"
   uio[3]: ""
   uio[4]: ""
   uio[5]: ""
