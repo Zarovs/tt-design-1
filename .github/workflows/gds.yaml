@@ -38,6 +38,11 @@ jobs:
           errs=$(grep -hE '\[ERROR|^Error|ERROR:' $logs 2>/dev/null | head -5 | enc)
           echo "::notice title=utilization::${util:-none found}"
           echo "::notice title=synthesis::${area:-none found}"
+          # synthesis cell breakdown (by area) and which report it came from
+          if [ -n "$stat" ]; then
+            cells=$(grep -E '^\s+sky130_fd_sc_hd__\S+\s+[0-9]+' "$stat" | sort -k2 -n -r | head -45 | awk '{print $1" "$2" "$3}' | enc)
+            echo "::notice title=synthesis cells (${stat})::${cells:-none}"
+          fi
           met=$(find . -path '*runs/*final*' -name 'metrics.csv' 2>/dev/null | head -1)
           tim=$( { [ -n "$met" ] && grep -E '^timing__(setup|hold)__(ws|tns),|^timing__(setup|hold)_vio__count,|^route__drc_errors,' "$met"; } | enc)
           echo "::notice title=timing::${tim:-none found}"
