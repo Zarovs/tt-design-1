@@ -32,6 +32,15 @@ class alignas(VL_CACHE_LINE_BYTES)Vtt_um_zarovs_nbody__Syms final : public Veril
     // SCOPE NAMES
     VerilatedScope __Vscope_TOP;
     VerilatedScope __Vscope_tt_um_zarovs_nbody;
+    VerilatedScope __Vscope_tt_um_zarovs_nbody__body__BRA__0__KET__;
+    VerilatedScope __Vscope_tt_um_zarovs_nbody__body__BRA__0__KET____cg_pos;
+    VerilatedScope __Vscope_tt_um_zarovs_nbody__body__BRA__0__KET____cg_vel;
+    VerilatedScope __Vscope_tt_um_zarovs_nbody__body__BRA__1__KET__;
+    VerilatedScope __Vscope_tt_um_zarovs_nbody__body__BRA__1__KET____cg_pos;
+    VerilatedScope __Vscope_tt_um_zarovs_nbody__body__BRA__1__KET____cg_vel;
+    VerilatedScope __Vscope_tt_um_zarovs_nbody__body__BRA__2__KET__;
+    VerilatedScope __Vscope_tt_um_zarovs_nbody__body__BRA__2__KET____cg_pos;
+    VerilatedScope __Vscope_tt_um_zarovs_nbody__body__BRA__2__KET____cg_vel;
 
     // CONSTRUCTORS
     Vtt_um_zarovs_nbody__Syms(VerilatedContext* contextp, const char* namep, Vtt_um_zarovs_nbody* modelp);

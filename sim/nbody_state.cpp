@@ -15,9 +15,10 @@ int main(int argc, char **argv) {
   long cyc = 0;
   for (int f = 0; f < frames; f++) {
     for (int c = 0; c < 800 * 525; c++) { top->clk = 0; top->eval(); top->clk = 1; top->eval(); cyc++; }
-    for (int b = 0; b < 3; b++)
-      printf("%d %d %d %d%s", r->tt_um_zarovs_nbody__DOT__px[b], r->tt_um_zarovs_nbody__DOT__py[b],
-             r->tt_um_zarovs_nbody__DOT__vx[b], r->tt_um_zarovs_nbody__DOT__vy[b], b == 2 ? "\n" : " ");
+#define R(b, f) r->tt_um_zarovs_nbody__DOT__body__BRA__##b##__KET____DOT__##f
+    printf("%d %d %d %d %d %d %d %d %d %d %d %d\n",
+           R(0, rx), R(0, ry), R(0, rvx), R(0, rvy), R(1, rx), R(1, ry), R(1, rvx), R(1, rvy),
+           R(2, rx), R(2, ry), R(2, rvx), R(2, rvy));
   }
   return 0;
 }

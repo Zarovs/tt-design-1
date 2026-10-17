@@ -20,6 +20,18 @@ VL_ATTR_COLD void Vtt_um_zarovs_nbody___024root___eval_initial(Vtt_um_zarovs_nbo
     // Body
     Vtt_um_zarovs_nbody___024root___eval_initial__TOP(vlSelf);
     vlSelf->__Vtrigprevexpr___TOP__clk__0 = vlSelf->clk;
+    vlSelf->__Vtrigprevexpr___TOP__tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__gclk_pos__0 
+        = vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__gclk_pos;
+    vlSelf->__Vtrigprevexpr___TOP__tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__gclk_vel__0 
+        = vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__gclk_vel;
+    vlSelf->__Vtrigprevexpr___TOP__tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__gclk_pos__0 
+        = vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__gclk_pos;
+    vlSelf->__Vtrigprevexpr___TOP__tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__gclk_vel__0 
+        = vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__gclk_vel;
+    vlSelf->__Vtrigprevexpr___TOP__tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__gclk_pos__0 
+        = vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__gclk_pos;
+    vlSelf->__Vtrigprevexpr___TOP__tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__gclk_vel__0 
+        = vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__gclk_vel;
 }
 
 VL_ATTR_COLD void Vtt_um_zarovs_nbody___024root___eval_initial__TOP(Vtt_um_zarovs_nbody___024root* vlSelf) {
@@ -141,6 +153,24 @@ VL_ATTR_COLD void Vtt_um_zarovs_nbody___024root___dump_triggers__act(Vtt_um_zaro
     if ((1ULL & vlSelf->__VactTriggered.word(0U))) {
         VL_DBG_MSGF("         'act' region trigger index 0 is active: @(posedge clk)\n");
     }
+    if ((2ULL & vlSelf->__VactTriggered.word(0U))) {
+        VL_DBG_MSGF("         'act' region trigger index 1 is active: @(posedge tt_um_zarovs_nbody.body[0].gclk_pos)\n");
+    }
+    if ((4ULL & vlSelf->__VactTriggered.word(0U))) {
+        VL_DBG_MSGF("         'act' region trigger index 2 is active: @(posedge tt_um_zarovs_nbody.body[0].gclk_vel)\n");
+    }
+    if ((8ULL & vlSelf->__VactTriggered.word(0U))) {
+        VL_DBG_MSGF("         'act' region trigger index 3 is active: @(posedge tt_um_zarovs_nbody.body[1].gclk_pos)\n");
+    }
+    if ((0x10ULL & vlSelf->__VactTriggered.word(0U))) {
+        VL_DBG_MSGF("         'act' region trigger index 4 is active: @(posedge tt_um_zarovs_nbody.body[1].gclk_vel)\n");
+    }
+    if ((0x20ULL & vlSelf->__VactTriggered.word(0U))) {
+        VL_DBG_MSGF("         'act' region trigger index 5 is active: @(posedge tt_um_zarovs_nbody.body[2].gclk_pos)\n");
+    }
+    if ((0x40ULL & vlSelf->__VactTriggered.word(0U))) {
+        VL_DBG_MSGF("         'act' region trigger index 6 is active: @(posedge tt_um_zarovs_nbody.body[2].gclk_vel)\n");
+    }
 }
 #endif  // VL_DEBUG
 
@@ -155,6 +185,24 @@ VL_ATTR_COLD void Vtt_um_zarovs_nbody___024root___dump_triggers__nba(Vtt_um_zaro
     }
     if ((1ULL & vlSelf->__VnbaTriggered.word(0U))) {
         VL_DBG_MSGF("         'nba' region trigger index 0 is active: @(posedge clk)\n");
+    }
+    if ((2ULL & vlSelf->__VnbaTriggered.word(0U))) {
+        VL_DBG_MSGF("         'nba' region trigger index 1 is active: @(posedge tt_um_zarovs_nbody.body[0].gclk_pos)\n");
+    }
+    if ((4ULL & vlSelf->__VnbaTriggered.word(0U))) {
+        VL_DBG_MSGF("         'nba' region trigger index 2 is active: @(posedge tt_um_zarovs_nbody.body[0].gclk_vel)\n");
+    }
+    if ((8ULL & vlSelf->__VnbaTriggered.word(0U))) {
+        VL_DBG_MSGF("         'nba' region trigger index 3 is active: @(posedge tt_um_zarovs_nbody.body[1].gclk_pos)\n");
+    }
+    if ((0x10ULL & vlSelf->__VnbaTriggered.word(0U))) {
+        VL_DBG_MSGF("         'nba' region trigger index 4 is active: @(posedge tt_um_zarovs_nbody.body[1].gclk_vel)\n");
+    }
+    if ((0x20ULL & vlSelf->__VnbaTriggered.word(0U))) {
+        VL_DBG_MSGF("         'nba' region trigger index 5 is active: @(posedge tt_um_zarovs_nbody.body[2].gclk_pos)\n");
+    }
+    if ((0x40ULL & vlSelf->__VnbaTriggered.word(0U))) {
+        VL_DBG_MSGF("         'nba' region trigger index 6 is active: @(posedge tt_um_zarovs_nbody.body[2].gclk_vel)\n");
     }
 }
 #endif  // VL_DEBUG
@@ -205,7 +253,7 @@ VL_ATTR_COLD void Vtt_um_zarovs_nbody___024root___ctor_var_reset(Vtt_um_zarovs_n
     for (int __Vi0 = 0; __Vi0 < 3; ++__Vi0) {
         vlSelf->tt_um_zarovs_nbody__DOT__vy[__Vi0] = VL_RAND_RESET_I(12);
     }
-    vlSelf->tt_um_zarovs_nbody__DOT__state = VL_RAND_RESET_I(2);
+    vlSelf->tt_um_zarovs_nbody__DOT__state = VL_RAND_RESET_I(3);
     vlSelf->tt_um_zarovs_nbody__DOT__t = VL_RAND_RESET_I(4);
     vlSelf->tt_um_zarovs_nbody__DOT__pair = VL_RAND_RESET_I(3);
     vlSelf->tt_um_zarovs_nbody__DOT__k = VL_RAND_RESET_I(3);
@@ -236,7 +284,8 @@ VL_ATTR_COLD void Vtt_um_zarovs_nbody___024root___ctor_var_reset(Vtt_um_zarovs_n
     vlSelf->tt_um_zarovs_nbody__DOT__kon = VL_RAND_RESET_I(1);
     vlSelf->tt_um_zarovs_nbody__DOT__vxb = VL_RAND_RESET_I(12);
     vlSelf->tt_um_zarovs_nbody__DOT__vyb = VL_RAND_RESET_I(12);
-    vlSelf->tt_um_zarovs_nbody__DOT__tv = VL_RAND_RESET_I(5);
+    vlSelf->tt_um_zarovs_nbody__DOT__vsx = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__vsy = VL_RAND_RESET_I(1);
     vlSelf->tt_um_zarovs_nbody__DOT__a_x = VL_RAND_RESET_I(1);
     vlSelf->tt_um_zarovs_nbody__DOT__b_x = VL_RAND_RESET_I(1);
     vlSelf->tt_um_zarovs_nbody__DOT__a_y = VL_RAND_RESET_I(1);
@@ -253,15 +302,30 @@ VL_ATTR_COLD void Vtt_um_zarovs_nbody___024root___ctor_var_reset(Vtt_um_zarovs_n
     vlSelf->tt_um_zarovs_nbody__DOT__last_p = VL_RAND_RESET_I(1);
     vlSelf->tt_um_zarovs_nbody__DOT__last_v = VL_RAND_RESET_I(1);
     vlSelf->tt_um_zarovs_nbody__DOT__start = VL_RAND_RESET_I(1);
-    vlSelf->tt_um_zarovs_nbody__DOT__n = VL_RAND_RESET_I(32);
     vlSelf->tt_um_zarovs_nbody__DOT__sxp = VL_RAND_RESET_I(11);
     vlSelf->tt_um_zarovs_nbody__DOT__syp = VL_RAND_RESET_I(11);
+    vlSelf->tt_um_zarovs_nbody__DOT__wx = VL_RAND_RESET_I(8);
+    vlSelf->tt_um_zarovs_nbody__DOT__wy = VL_RAND_RESET_I(8);
+    vlSelf->tt_um_zarovs_nbody__DOT__d0x = VL_RAND_RESET_I(8);
+    vlSelf->tt_um_zarovs_nbody__DOT__d0y = VL_RAND_RESET_I(8);
+    vlSelf->tt_um_zarovs_nbody__DOT__d1x = VL_RAND_RESET_I(8);
+    vlSelf->tt_um_zarovs_nbody__DOT__d1y = VL_RAND_RESET_I(8);
+    vlSelf->tt_um_zarovs_nbody__DOT__d2x = VL_RAND_RESET_I(8);
+    vlSelf->tt_um_zarovs_nbody__DOT__d2y = VL_RAND_RESET_I(8);
     vlSelf->tt_um_zarovs_nbody__DOT__o0x = VL_RAND_RESET_I(11);
     vlSelf->tt_um_zarovs_nbody__DOT__o0y = VL_RAND_RESET_I(11);
     vlSelf->tt_um_zarovs_nbody__DOT__o1x = VL_RAND_RESET_I(11);
     vlSelf->tt_um_zarovs_nbody__DOT__o1y = VL_RAND_RESET_I(11);
     vlSelf->tt_um_zarovs_nbody__DOT__o2x = VL_RAND_RESET_I(11);
     vlSelf->tt_um_zarovs_nbody__DOT__o2y = VL_RAND_RESET_I(11);
+    vlSelf->tt_um_zarovs_nbody__DOT__in_world = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__w0 = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__w1 = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__w2 = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__selx = VL_RAND_RESET_I(4);
+    vlSelf->tt_um_zarovs_nbody__DOT__sely = VL_RAND_RESET_I(4);
+    vlSelf->tt_um_zarovs_nbody__DOT__selm = VL_RAND_RESET_I(3);
+    vlSelf->tt_um_zarovs_nbody__DOT__hit = VL_RAND_RESET_I(1);
     vlSelf->tt_um_zarovs_nbody__DOT__on0 = VL_RAND_RESET_I(1);
     vlSelf->tt_um_zarovs_nbody__DOT__on1 = VL_RAND_RESET_I(1);
     vlSelf->tt_um_zarovs_nbody__DOT__on2 = VL_RAND_RESET_I(1);
@@ -269,12 +333,57 @@ VL_ATTR_COLD void Vtt_um_zarovs_nbody___024root___ctor_var_reset(Vtt_um_zarovs_n
     vlSelf->tt_um_zarovs_nbody__DOT__rgb = VL_RAND_RESET_I(6);
     vlSelf->tt_um_zarovs_nbody__DOT__out_r = VL_RAND_RESET_I(8);
     vlSelf->tt_um_zarovs_nbody__DOT___unused = VL_RAND_RESET_I(1);
-    vlSelf->tt_um_zarovs_nbody__DOT____Vlvbound_h99d9bc9b__0 = VL_RAND_RESET_I(11);
-    vlSelf->tt_um_zarovs_nbody__DOT____Vlvbound_h3c9df23b__0 = VL_RAND_RESET_I(11);
-    vlSelf->tt_um_zarovs_nbody__DOT____Vlvbound_hc1565f32__0 = VL_RAND_RESET_I(12);
-    vlSelf->tt_um_zarovs_nbody__DOT____Vlvbound_h6c7d9e9f__0 = VL_RAND_RESET_I(12);
-    vlSelf->tt_um_zarovs_nbody__DOT____Vlvbound_h99d9bc9b__1 = VL_RAND_RESET_I(11);
-    vlSelf->tt_um_zarovs_nbody__DOT____Vlvbound_h3c9df23b__1 = VL_RAND_RESET_I(11);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__en_pos = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__en_vel = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__gclk_pos = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__gclk_vel = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__rx = VL_RAND_RESET_I(11);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__ry = VL_RAND_RESET_I(11);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__rvx = VL_RAND_RESET_I(12);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__rvy = VL_RAND_RESET_I(12);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__init = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__en_pos = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__en_vel = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__gclk_pos = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__gclk_vel = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__rx = VL_RAND_RESET_I(11);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__ry = VL_RAND_RESET_I(11);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__rvx = VL_RAND_RESET_I(12);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__rvy = VL_RAND_RESET_I(12);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__init = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__en_pos = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__en_vel = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__gclk_pos = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__gclk_vel = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__rx = VL_RAND_RESET_I(11);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__ry = VL_RAND_RESET_I(11);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__rvx = VL_RAND_RESET_I(12);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__rvy = VL_RAND_RESET_I(12);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__init = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__cg_pos__DOT__clk = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__cg_pos__DOT__en = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__cg_pos__DOT__gclk = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__cg_pos__DOT__en_l = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__cg_vel__DOT__clk = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__cg_vel__DOT__en = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__cg_vel__DOT__gclk = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__cg_vel__DOT__en_l = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__cg_pos__DOT__clk = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__cg_pos__DOT__en = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__cg_pos__DOT__gclk = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__cg_pos__DOT__en_l = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__cg_vel__DOT__clk = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__cg_vel__DOT__en = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__cg_vel__DOT__gclk = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__cg_vel__DOT__en_l = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__cg_pos__DOT__clk = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__cg_pos__DOT__en = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__cg_pos__DOT__gclk = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__cg_pos__DOT__en_l = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__cg_vel__DOT__clk = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__cg_vel__DOT__en = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__cg_vel__DOT__gclk = VL_RAND_RESET_I(1);
+    vlSelf->tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__cg_vel__DOT__en_l = VL_RAND_RESET_I(1);
     vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__tapd__0__Vfuncout = VL_RAND_RESET_I(1);
     vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__tapd__0__d = VL_RAND_RESET_I(8);
     vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__tapd__0__idx = VL_RAND_RESET_I(6);
@@ -287,23 +396,28 @@ VL_ATTR_COLD void Vtt_um_zarovs_nbody___024root___ctor_var_reset(Vtt_um_zarovs_n
     vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__tapd__3__Vfuncout = VL_RAND_RESET_I(1);
     vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__tapd__3__d = VL_RAND_RESET_I(8);
     vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__tapd__3__idx = VL_RAND_RESET_I(6);
-    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__6__Vfuncout = VL_RAND_RESET_I(7);
-    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__6__v = VL_RAND_RESET_I(4);
-    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__6__a = VL_RAND_RESET_I(4);
+    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__inwin__4__Vfuncout = VL_RAND_RESET_I(1);
+    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__inwin__4__ox = VL_RAND_RESET_I(11);
+    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__inwin__4__oy = VL_RAND_RESET_I(11);
+    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__inwin__5__Vfuncout = VL_RAND_RESET_I(1);
+    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__inwin__5__ox = VL_RAND_RESET_I(11);
+    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__inwin__5__oy = VL_RAND_RESET_I(11);
+    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__inwin__6__Vfuncout = VL_RAND_RESET_I(1);
+    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__inwin__6__ox = VL_RAND_RESET_I(11);
+    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__inwin__6__oy = VL_RAND_RESET_I(11);
     vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__7__Vfuncout = VL_RAND_RESET_I(7);
     vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__7__v = VL_RAND_RESET_I(4);
     vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__7__a = VL_RAND_RESET_I(4);
-    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__10__Vfuncout = VL_RAND_RESET_I(7);
-    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__10__v = VL_RAND_RESET_I(4);
-    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__10__a = VL_RAND_RESET_I(4);
-    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__11__Vfuncout = VL_RAND_RESET_I(7);
-    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__11__v = VL_RAND_RESET_I(4);
-    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__11__a = VL_RAND_RESET_I(4);
-    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__14__Vfuncout = VL_RAND_RESET_I(7);
-    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__14__v = VL_RAND_RESET_I(4);
-    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__14__a = VL_RAND_RESET_I(4);
-    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__15__Vfuncout = VL_RAND_RESET_I(7);
-    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__15__v = VL_RAND_RESET_I(4);
-    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__15__a = VL_RAND_RESET_I(4);
+    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__8__Vfuncout = VL_RAND_RESET_I(7);
+    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__8__v = VL_RAND_RESET_I(4);
+    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__sq4__8__a = VL_RAND_RESET_I(4);
+    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__rr__9__Vfuncout = VL_RAND_RESET_I(7);
+    vlSelf->__Vfunc_tt_um_zarovs_nbody__DOT__rr__9__m = VL_RAND_RESET_I(3);
     vlSelf->__Vtrigprevexpr___TOP__clk__0 = VL_RAND_RESET_I(1);
+    vlSelf->__Vtrigprevexpr___TOP__tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__gclk_pos__0 = VL_RAND_RESET_I(1);
+    vlSelf->__Vtrigprevexpr___TOP__tt_um_zarovs_nbody__DOT__body__BRA__0__KET____DOT__gclk_vel__0 = VL_RAND_RESET_I(1);
+    vlSelf->__Vtrigprevexpr___TOP__tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__gclk_pos__0 = VL_RAND_RESET_I(1);
+    vlSelf->__Vtrigprevexpr___TOP__tt_um_zarovs_nbody__DOT__body__BRA__1__KET____DOT__gclk_vel__0 = VL_RAND_RESET_I(1);
+    vlSelf->__Vtrigprevexpr___TOP__tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__gclk_pos__0 = VL_RAND_RESET_I(1);
+    vlSelf->__Vtrigprevexpr___TOP__tt_um_zarovs_nbody__DOT__body__BRA__2__KET____DOT__gclk_vel__0 = VL_RAND_RESET_I(1);
 }
