@@ -20,6 +20,26 @@ jobs:
         with:
           pdk: sky130A
 
+      # Report-only: copies key numbers from the flow logs into run annotations,
+      # which can be read through the GitHub API. Runs even if the build failed,
+      # never fails itself and changes nothing in the build.
+      - name: Summarize results as annotations
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          enc() { sed -e 's/%/%25/g' -e 's/\r//g' | tr '\n' '|' | sed -e 's/|$//' -e 's/|/%0A/g'; }
+          logs=$(find . -path '*runs/*' -name '*.log' 2>/dev/null)
+          stat=$(find . -path '*runs/*' -name 'stat*.rpt' 2>/dev/null | head -1)
+          if [ -z "$logs" ]; then echo "::warning title=summary::no flow logs found"; exit 0; fi
+          util=$(grep -hE 'Util(ization)?' $logs 2>/dev/null | grep -E 'GPL|INFO|ERROR' | tail -5 | enc)
+          area=$( { [ -n "$stat" ] && grep -E 'Chip area|Number of cells' "$stat" | head -3; } | enc)
+          errs=$(grep -hE '\[ERROR|^Error|ERROR:' $logs 2>/dev/null | head -5 | enc)
+          echo "::notice title=utilization::${util:-none found}"
+          echo "::notice title=synthesis::${area:-none found}"
+          [ -n "$errs" ] && echo "::error title=first errors::${errs}"
+          exit 0
+
   precheck:
     needs: gds
     runs-on: ubuntu-24.04
