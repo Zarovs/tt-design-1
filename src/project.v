@@ -12,14 +12,14 @@
  * centred on the screen. Velocities: 12 bits, 10 fraction bits.
  *
  * Per ordered pair (i, j), with dx, dy the integer part of r_j - r_i:
- *   L   = max(|dx|,|dy|) + 3/8 min      (octagonal distance ~ |r|)
+ *   L   = max(|dx|,|dy|) + 1/4 min      (octagonal distance ~ |r|)
  *   e   = leading one of L (min 2), m = next 2 bits
- *   c   = mass_j * LUT[m]               (LUT ~ 8 / (1 + m/4)^3)
+ *   c   = mass_j * LUT[m]               (LUT ~ 8 / (1 + m/4)^3, mass_j = 2^n)
  *   v_i += (c * d) >> (3e - 10)         (sum of rounded shifts, one per bit of c)
  * then all positions += round(v >> 7). Bit-exact with model/nbody_model.py hw_step.
  *
- * Inputs:  ui[1:0] mass of body 0 - 1, ui[3:2] body 1, ui[5:4] body 2,
- *          ui[6] pause, uio[2:0] speed (steps per frame = 2^(uio ^ 3), default 8)
+ * Inputs:  ui[1:0] mass of body 0, ui[3:2] body 1, ui[5:4] body 2
+ *          (mass = 2^bits: 1, 2, 4, 8), ui[6] pause, uio[2:0] speed (steps per frame = 2^(uio ^ 3), default 8)
  * Outputs: TinyVGA PMOD on uo_out.
  */
 
@@ -61,12 +61,14 @@ module tt_um_zarovs_nbody (
   wire vsync   = ~((vpos >= 10'd490) && (vpos < 10'd492));
 
   // ------------------------------------------------------------- inputs
-  wire [2:0] mass0 = {1'b0, ui_in[1:0]} + 3'd1;   // 1..4
-  wire [2:0] mass1 = {1'b0, ui_in[3:2]} + 3'd1;
-  wire [2:0] mass2 = {1'b0, ui_in[5:4]} + 3'd1;
+  // masses are powers of two: mass = 2^ui bits (1, 2, 4, 8)
+  wire [1:0] mexp0 = ui_in[1:0];
+  wire [1:0] mexp1 = ui_in[3:2];
+  wire [1:0] mexp2 = ui_in[5:4];
   wire       pause = ui_in[6];
+  // speed: new physics steps start while the beam is in the first 2^spd
+  // lines of vertical blanking (one step = 336 clocks, about 0.42 lines)
   wire [2:0] spd   = uio_in[2:0] ^ 3'd3;
-  wire [2:0] spd_c = (spd == 3'd7) ? 3'd6 : spd;   // at most 64 steps per frame
 
   // ------------------------------------------------------- body state
   // Rotating registers, LSB first. Index: body 0..2.
@@ -82,7 +84,6 @@ module tt_um_zarovs_nbody (
   reg [2:0] pair;       // 0..5: (0,1) (0,2) (1,0) (1,2) (2,0) (2,1)
   reg [2:0] k;          // bit of c being applied
   reg [1:0] pb;         // body in the position phase
-  reg [6:0] steps_left;
   reg       cx, cy;     // carries of the two serial adders
   reg [7:0] dxr, dyr;   // integer part of r_j - r_i (shifted in LSB first)
 
@@ -98,7 +99,7 @@ module tt_um_zarovs_nbody (
     endcase
   end
 
-  wire [2:0] mass_j = (bj == 2'd0) ? mass0 : (bj == 2'd1) ? mass1 : mass2;
+  wire [1:0] mexp_j = (bj == 2'd0) ? mexp0 : (bj == 2'd1) ? mexp1 : mexp2;
 
   // ---------------------------------------------------- 1/r^3 factor
   // one's complement |d| (off by one for negatives, as in the model)
@@ -107,7 +108,7 @@ module tt_um_zarovs_nbody (
   wire       xbig = ax >= ay;
   wire [6:0] hi = xbig ? ax : ay;
   wire [6:0] lo = xbig ? ay : ax;
-  wire [7:0] oct = {1'b0, hi} + {3'b000, lo[6:2]} + {4'b0000, lo[6:3]};
+  wire [7:0] oct = {1'b0, hi} + {3'b000, lo[6:2]};
 
   reg [2:0] e;       // leading one of oct, at least 2
   reg [1:0] mant;
@@ -132,14 +133,13 @@ module tt_um_zarovs_nbody (
       default: lut = 3'd1;
     endcase
   end
-  wire [5:0] cfac6 = mass_j * lut;                  // 0..24
-  wire [4:0] cfac  = cfac6[4:0];
-
-  // shift for bit k of c: 3e - 10 - k, range -8..11
+  // c = mass_j * lut = lut << mexp_j: bit k of lut is applied with shift
+  // 3e - 10 - mexp_j - k, range -15..11
   wire [5:0] e3 = {2'b00, e, 1'b0} + {3'b000, e};
-  wire signed [5:0] sh = $signed(e3) - 6'sd10 - $signed({3'b000, k});
-  wire signed [5:0] q  = $signed({2'b00, t}) + sh;   // tap index into dxr/dyr
-  wire signed [5:0] qr = sh - 6'sd1;                  // rounding bit index
+  wire signed [5:0] sh = $signed(e3) - 6'sd10 - $signed({4'b0000, mexp_j}) - $signed({3'b000, k});
+  // Phase A runs t = 0..12: t = 0 only loads the rounding bit d[sh-1] into the
+  // carry, t = 1..12 add bit (t-1) of round(d >>> sh) into v.
+  wire signed [5:0] q  = $signed({2'b00, t}) + sh - 6'sd1;   // tap index into dxr/dyr
 
   function automatic tapd(input [7:0] d, input signed [5:0] idx);
     begin
@@ -149,7 +149,7 @@ module tt_um_zarovs_nbody (
     end
   endfunction
 
-  wire kon = cfac[k];
+  wire kon = lut[k[1:0]];
 
   // --------------------------------------------- serial adder operands
   wire [V-1:0] vxb = vx[pb];
@@ -170,8 +170,6 @@ module tt_um_zarovs_nbody (
         a_y = vy[bi][0];
         b_x = kon & tapd(dxr, q);
         b_y = kon & tapd(dyr, q);
-        c0x = kon & (sh > 0) & tapd(dxr, qr);
-        c0y = kon & (sh > 0) & tapd(dyr, qr);
       end
       S_P: begin   // pos += round(v >>> 7)
         a_x = px[pb][0];
@@ -188,8 +186,8 @@ module tt_um_zarovs_nbody (
   end
 
   wire first = (t == 4'd0);
-  wire cin_x = first ? c0x : cx;
-  wire cin_y = first ? c0y : cy;
+  wire cin_x = (first && state != S_A) ? c0x : cx;
+  wire cin_y = (first && state != S_A) ? c0y : cy;
   wire sx  = a_x ^ b_x ^ cin_x;
   wire sy  = a_y ^ b_y ^ cin_y;
   wire cox = (a_x & b_x) | (a_x & cin_x) | (b_x & cin_x);
@@ -198,6 +196,8 @@ module tt_um_zarovs_nbody (
   wire last_p = (t == P - 1);
   wire last_v = (t == V - 1);
   wire start  = !pause && (vpos == 10'd480) && (hpos == 10'd0);
+  wire [5:0] vline = vpos[5:0] - 6'd32;     // vpos - 480 for vpos in 480..524
+  wire more  = ((vline >> spd) == 6'd0) && (vline < 6'd43);
 
   // ------------------------------------------- gated state registers
   // Each body's position pair and velocity pair sits on its own gated clock,
@@ -208,7 +208,7 @@ module tt_um_zarovs_nbody (
     for (g = 0; g < 3; g = g + 1) begin : body
       wire en_pos = (state == S_INIT && !last_v) || (state == S_D && (bi == g || bj == g)) ||
                     (state == S_P && pb == g && !last_v);
-      wire en_vel = (state == S_INIT) || (state == S_A && bi == g) || (state == S_P && pb == g);
+      wire en_vel = (state == S_INIT) || (state == S_A && bi == g && !first) || (state == S_P && pb == g);
       wire gclk_pos, gclk_vel;
       clkgate cg_pos (.clk(clk), .en(en_pos), .gclk(gclk_pos));
       clkgate cg_vel (.clk(clk), .en(en_vel), .gclk(gclk_vel));
@@ -244,10 +244,15 @@ module tt_um_zarovs_nbody (
   always @(posedge clk) begin
     if (!rst_n) begin
       state <= S_INIT; t <= 4'd0; pair <= 3'd0; k <= 3'd0; pb <= 2'd0;
-      steps_left <= 7'd0; cx <= 1'b0; cy <= 1'b0; dxr <= 8'd0; dyr <= 8'd0; vsx <= 1'b0; vsy <= 1'b0;
+      cx <= 1'b0; cy <= 1'b0; dxr <= 8'd0; dyr <= 8'd0; vsx <= 1'b0; vsy <= 1'b0;
     end else begin
-      cx <= cox;
-      cy <= coy;
+      if (state == S_A && first) begin   // rounding bit, no addition yet
+        cx <= b_x & (sh > 0);
+        cy <= b_y & (sh > 0);
+      end else begin
+        cx <= cox;
+        cy <= coy;
+      end
       case (state)
         S_INIT: begin
           if (last_v) begin state <= S_IDLE; t <= 4'd0; end
@@ -256,7 +261,6 @@ module tt_um_zarovs_nbody (
 
         S_IDLE: if (start) begin
           state <= S_D; t <= 4'd0; pair <= 3'd0;
-          steps_left <= (7'd1 << spd_c) - 7'd1;
         end
 
         S_D: begin
@@ -271,9 +275,9 @@ module tt_um_zarovs_nbody (
         end
 
         S_A: begin
-          if (last_v) begin
+          if (t == V) begin
             t <= 4'd0;
-            if (k != 3'd4) k <= k + 3'd1;
+            if (k != 3'd2) k <= k + 3'd1;
             else if (pair != 3'd5) begin state <= S_D; pair <= pair + 3'd1; end
             else begin state <= S_P; pb <= 2'd0; end
           end else t <= t + 4'd1;
@@ -284,8 +288,8 @@ module tt_um_zarovs_nbody (
           if (last_v) begin
             t <= 4'd0;
             if (pb != 2'd2) pb <= pb + 2'd1;
-            else if (steps_left == 7'd0) state <= S_IDLE;
-            else begin steps_left <= steps_left - 7'd1; state <= S_D; pair <= 3'd0; end
+            else if (more) begin state <= S_D; pair <= 3'd0; end
+            else state <= S_IDLE;
           end else t <= t + 4'd1;
         end
 
@@ -308,17 +312,16 @@ module tt_um_zarovs_nbody (
   endfunction
 
   // inside the 16x16 window around a body (offset in -8..7 on both axes)
-  function automatic inwin(input [10:0] ox, input [10:0] oy);
-    inwin = ((ox[10:3] == 8'h00) || (ox[10:3] == 8'hFF)) &&
-            ((oy[10:3] == 8'h00) || (oy[10:3] == 8'hFF));
+  function automatic inwin(input [10:3] ox, input [10:3] oy);
+    inwin = ((ox == 8'h00) || (ox == 8'hFF)) && ((oy == 8'h00) || (oy == 8'hFF));
   endfunction
 
   // radius 2 + mass (3..6 px), as r^2 + r
-  function automatic [6:0] rr(input [2:0] m);
+  function automatic [6:0] rr(input [1:0] m);
     case (m)
-      3'd1:    rr = 7'd12;
-      3'd2:    rr = 7'd20;
-      3'd3:    rr = 7'd30;
+      2'd0:    rr = 7'd12;
+      2'd1:    rr = 7'd20;
+      2'd2:    rr = 7'd30;
       default: rr = 7'd42;
     endcase
   endfunction
@@ -334,45 +337,39 @@ module tt_um_zarovs_nbody (
   wire [10:0] o1x = {{2{d1x[7]}}, d1x, sxp[0]}, o1y = {{2{d1y[7]}}, d1y, syp[0]};
   wire [10:0] o2x = {{2{d2x[7]}}, d2x, sxp[0]}, o2y = {{2{d2y[7]}}, d2y, syp[0]};
   // bodies only inside the 512-pixel world window (no wrapped ghosts outside it)
-  wire in_world = (hpos >= 10'd64) && (hpos < 10'd576);
+  // sxp in -256..255, i.e. bits 10..8 all equal
+  wire in_world = (sxp[10:8] == 3'b000) || (sxp[10:8] == 3'b111);
 
   // One shared disk test: pick the first body whose window holds this pixel.
-  wire w0 = in_world && inwin(o0x, o0y);
-  wire w1 = in_world && inwin(o1x, o1y);
-  wire w2 = in_world && inwin(o2x, o2y);
+  wire w0 = in_world && inwin(o0x[10:3], o0y[10:3]);
+  wire w1 = in_world && inwin(o1x[10:3], o1y[10:3]);
+  wire w2 = in_world && inwin(o2x[10:3], o2y[10:3]);
   wire [3:0] selx = w0 ? o0x[3:0] : w1 ? o1x[3:0] : o2x[3:0];
   wire [3:0] sely = w0 ? o0y[3:0] : w1 ? o1y[3:0] : o2y[3:0];
-  wire [2:0] selm = w0 ? mass0    : w1 ? mass1    : mass2;
+  wire [1:0] selm = w0 ? mexp0    : w1 ? mexp1    : mexp2;
   wire hit = (w0 | w1 | w2) && (({1'b0, sq4(selx)} + {1'b0, sq4(sely)}) <= {1'b0, rr(selm)});
   wire on0 = hit && w0;
   wire on1 = hit && !w0 && w1;
   wire on2 = hit && !w0 && !w1;
-
-  // edges of the 512-pixel-wide world
-  wire border = (hpos == 10'd64) || (hpos == 10'd575);
 
   reg [5:0] rgb;   // {R1 R0, G1 G0, B1 B0}
   always @(*) begin
     if (on0)         rgb = 6'b11_11_00;   // yellow
     else if (on1)    rgb = 6'b00_11_11;   // cyan
     else if (on2)    rgb = 6'b11_01_11;   // pink
-    else if (border) rgb = 6'b00_00_01;
     else             rgb = 6'b00_00_00;
   end
 
-  reg [7:0] out_r;
-  always @(posedge clk) begin
-    if (!rst_n) out_r <= 8'b1000_1000;
-    else out_r <= visible ? {hsync, rgb[0], rgb[2], rgb[4], vsync, rgb[1], rgb[3], rgb[5]}
-                          : {hsync, 3'b000, vsync, 3'b000};
-  end
+  // outputs straight from the (registered) counters and state, no extra stage
+  wire [7:0] out_r = visible ? {hsync, rgb[0], rgb[2], rgb[4], vsync, rgb[1], rgb[3], rgb[5]}
+                             : {hsync, 3'b000, vsync, 3'b000};
 
   assign uo_out  = out_r;
   assign uio_out = 8'h00;
   assign uio_oe  = 8'h00;
 
-  wire _unused = &{ena, ui_in[7], uio_in[7:3], cfac6[5], lo[1:0], px[0][2:0], py[0][2:0],
-                   px[1][2:0], py[1][2:0], px[2][2:0], py[2][2:0], sxp[10:9], syp[10:9],
+  wire _unused = &{ena, ui_in[7], uio_in[7:3], lo[1:0], px[0][2:0], py[0][2:0],
+                   px[1][2:0], py[1][2:0], px[2][2:0], py[2][2:0], syp[10:9],
                    o0x[2:0], o0y[2:0], o1x[2:0], o1y[2:0], o2x[2:0], o2y[2:0], 1'b0};
 
 endmodule

@@ -58,7 +58,7 @@ def accel_terms(p, dx, dy, mass):
     ax = dx ^ sx            # ~|dx| (one's complement abs), cheap in hardware
     ay = dy ^ sy
     hi, lo = (ax, ay) if ax >= ay else (ay, ax)
-    o = hi + (lo >> 2) + (lo >> 3)      # octagonal distance ~ |r| (max + 3/8 min)
+    o = hi + (lo >> 2)                  # octagonal distance ~ |r| (max + 1/4 min)
     e = max(lead1(o), p.emin)
     # mantissa: next `mant` bits below the leading one (0 if below emin)
     if lead1(o) >= p.emin and e >= p.mant:

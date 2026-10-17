@@ -37,6 +37,9 @@ jobs:
           errs=$(grep -hE '\[ERROR|^Error|ERROR:' $logs 2>/dev/null | head -5 | enc)
           echo "::notice title=utilization::${util:-none found}"
           echo "::notice title=synthesis::${area:-none found}"
+          met=$(find . -path '*runs/*final*' -name 'metrics.csv' 2>/dev/null | head -1)
+          tim=$( { [ -n "$met" ] && grep -E '^timing__(setup|hold)__(ws|tns),|^timing__(setup|hold)_vio__count,|^route__drc_errors,' "$met"; } | enc)
+          echo "::notice title=timing::${tim:-none found}"
           [ -n "$errs" ] && echo "::error title=first errors::${errs}"
           exit 0
 
