@@ -117,7 +117,6 @@ module tt_um_zarovs_nbody (
   reg [3:0] t;          // clock within a pass
   reg [2:0] pair;       // 0..5: (0,1) (0,2) (1,0) (1,2) (2,0) (2,1)
   reg [1:0] k;          // LUT bit being applied
-  reg [1:0] pb;         // body in S_P
   reg       cx, cy;     // carries of the x / y serial adders
   reg [7:0] dxr, dyr;   // D[10:3], then {sign of D, M = (|D| >> 3) mod 128}
   reg       zx, zy;     // D[2:0] == 0
@@ -189,8 +188,9 @@ module tt_um_zarovs_nbody (
   wire ny = dyr[7] ^ (state == S_U);
 
   // --------------------------------------------- serial adder operands
-  wire [V-1:0] vxb = vx[pb];
-  wire [V-1:0] vyb = vy[pb];
+  // S_P walks pairs 0, 2, 4, so bi is body 0, 1, 2 there
+  wire [V-1:0] vxb = vx[bi];
+  wire [V-1:0] vyb = vy[bi];
   wire         first = (t == 4'd0);
 
   reg a_x, b_x, a_y, b_y, c0x, c0y;   // operands and first-bit carry-ins
@@ -211,8 +211,8 @@ module tt_um_zarovs_nbody (
         a_y = vy[bi][0];  b_y = ty ^ ny;
       end
       S_P: begin   // pos += round(v >>> 7)
-        a_x = px[pb][0];
-        a_y = py[pb][0];
+        a_x = px[bi][0];
+        a_y = py[bi][0];
         // v rotates one bit per clock, so bit 7 now holds original bit t+7;
         // above bit 11 use the sign captured at t = 0
         b_x = (t > 4'd4) ? vsx : vxb[7];
@@ -243,9 +243,9 @@ module tt_um_zarovs_nbody (
   generate
     for (g = 0; g < 3; g = g + 1) begin : body
       wire en_pos = (state == S_INIT && t <= 4'd10) || (state == S_D && (bi == g || bj == g)) ||
-                    (state == S_P && pb == g && t <= 4'd10);
+                    (state == S_P && bi == g && t <= 4'd10);
       wire en_vel = (state == S_INIT) || ((state == S_A || state == S_U) && bi == g && !first) ||
-                    (state == S_P && pb == g);
+                    (state == S_P && bi == g);
       wire gclk_pos, gclk_vel;
       clkgate cg_pos (.clk(clk), .en(en_pos), .gclk(gclk_pos));
       clkgate cg_vel (.clk(clk), .en(en_vel), .gclk(gclk_vel));
@@ -301,7 +301,7 @@ module tt_um_zarovs_nbody (
 
   always @(posedge clk) begin
     if (!rst_n) begin
-      state <= S_INIT; t <= 4'd0; pair <= 3'd0; k <= 2'd0; pb <= 2'd0;
+      state <= S_INIT; t <= 4'd0; pair <= 3'd0; k <= 2'd0;
     end else begin
       // serial carries; an S_A / S_U pass starts with n ^ rounding bit
       if ((state == S_A || state == S_U) && first) begin cx <= nx ^ tx; cy <= ny ^ ty; end
@@ -338,7 +338,7 @@ module tt_um_zarovs_nbody (
             if (state == S_A && (ovx | ovy)) state <= S_U;
             else if (!last_k) begin state <= S_A; k <= k + 2'd1; end
             else if (pair != 3'd5) begin state <= S_D; pair <= pair + 3'd1; end
-            else begin state <= S_P; pb <= 2'd0; end
+            else begin state <= S_P; pair <= 3'd0; end
           end else t <= t + 4'd1;
         end
 
@@ -347,7 +347,7 @@ module tt_um_zarovs_nbody (
           if (first) begin vsx <= vxb[V-1]; vsy <= vyb[V-1]; end
           if (t == 4'd11) begin
             t <= 4'd0;
-            if (pb != 2'd2) pb <= pb + 2'd1;
+            if (pair != 3'd4) pair <= pair + 3'd2;
             else if (more) begin state <= S_D; pair <= 3'd0; end
             else state <= S_IDLE;
           end else t <= t + 4'd1;
