@@ -218,3 +218,69 @@ def hw_scene(p=HW):
     drift = v3 / 2                          # binary moves the other way
     init = [(-25, 0, -drift, -vb), (25, 0, -drift, vb), (0, -95, v3, 0)]
     return [to_fixed(p, *b) for b in init]
+
+
+# ---------------------------------------------------------------------------
+# Design A (branch onchip-a): the passing octagon/2-bit-LUT physics, plus
+#  - momentum-conserving sign-magnitude force: M = |D| >> 3 (exact magnitude),
+#    term = sign(D) * round(M >> sh), so the force on i from j is exactly minus
+#    the force on j from i
+#  - mass codes: 0 = massless, c > 0 = 2^(c-1) (1..64), gravity scale GA
+#  - per-pass clamping: a term >= 2048 or a sum outside 12 bits saturates
+GA = 3          # extra right shift vs the old G=3 physics (weaker gravity for heavy masses)
+
+
+def forceA(mx, my, code):
+    """passes for one pair: list of shifts (one per set LUT bit); [] if massless"""
+    if code == 0:
+        return []
+    hi, lo = (mx, my) if mx >= my else (my, mx)
+    o = hi + (lo >> 2)
+    e = max(o.bit_length() - 1, 2)
+    m = (o >> (e - 2)) & 3 if o.bit_length() - 1 >= 2 else 0
+    lut = [6, 3, 2, 1][m]
+    return [3 * e - 10 + GA - (code - 1) - k for k in range(3) if (lut >> k) & 1]
+
+
+def addA(v, neg, M, sh):
+    """v + sign * round(M >> sh), saturating, exactly as the hardware does it:
+    T' = M >> sh (truncated) >= 2048 saturates toward the sign; otherwise the
+    13-bit sum v +- (T' + rounding bit) saturates if it leaves 12 bits."""
+    if sh > 0:
+        Tt, rb = M >> sh, (M >> (sh - 1)) & 1
+    else:
+        Tt, rb = M << -sh, 0
+    if Tt >= 2048:
+        return -2048 if neg else 2047
+    r = v - (Tt + rb) if neg else v + (Tt + rb)
+    if r > 2047:
+        return 2047
+    if r < -2048:
+        return -2048
+    return r
+
+
+def hwA_step(bodies, codes):
+    W = 11
+    n = len(bodies)
+    newv = []
+    for i in range(n):
+        xi, yi, vx, vy = bodies[i]
+        for j in range(n):
+            if j == i:
+                continue
+            DX = wrap(bodies[j][0] - xi, W)
+            DY = wrap(bodies[j][1] - yi, W)
+            mx, my = abs(DX) >> 3, abs(DY) >> 3
+            for sh in forceA(mx, my, codes[j]):
+                vx = addA(vx, DX < 0, mx, sh)
+                vy = addA(vy, DY < 0, my, sh)
+        newv.append((vx, vy))
+    return [(wrap(x + ashr(vx, 7, True), W), wrap(y + ashr(vy, 7, True), W), vx, vy)
+            for (x, y, _, _), (vx, vy) in zip(bodies, newv)]
+
+
+def fixA(x, y, vx, vy):
+    """px, px/step -> raw state (positions 8.3, velocities 2.10)"""
+    s = lambda v: max(-2048, min(2047, round(v * 1024)))
+    return (wrap(round(x * 8), 11), wrap(round(y * 8), 11), s(vx), s(vy))
