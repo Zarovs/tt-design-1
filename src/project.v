@@ -12,9 +12,9 @@
  *
  * Per ordered pair (i, j), D = r_j - r_i (wrapping):
  *   M = (|D| >> 3) mod 128 per axis             (magnitude in whole pixels)
- *   L = max(Mx, My) + min/4                     (octagonal distance ~ |r|)
- *   e = leading one of L (min 2), m = next 2 bits, c = LUT[m] ~ 8 / (1 + m/4)^3
- *   for each set bit k of c:  v_i += sign(D) * round(M >> max(3e - 6 - code_j - k, -4))
+ *   L = max(Mx, My) + 3/8 min                   (distance ~ |r|, -3%..+7%)
+ *   e = leading one of L (min 2), m = next 4 bits, c = LUT[m] ~ 32 / (1 + m/16)^3
+ *   for each set bit k of c:  v_i += sign(D) * round(M >> max(3e - 4 - code_j - k, -4))
  *   (a kick that would overflow v is undone: a speed limit)
  * The pull of j on i is exactly minus the pull of i on j, so momentum is conserved.
  * Then every position moves by round(v >> 7).
@@ -23,7 +23,7 @@
  *   menu off: ui[1] pause, ui[6:4] speed, ui[3] scene (read at reset)
  *   menu on:  ui[1..3] select body 0..2, ui[6:4] mass code for the selected bodies
  * Mass code 0 = massless, 1..7 = mass 1, 2, 4 ... 64.
- * Speed 0: 1 step every 4 frames, 1: every 2nd frame, 2: 1 per frame, 3..7: about 3, 5, 9, 17, 34 per frame.
+ * Speed 0: 1 step every 4 frames, 1: every 2nd frame, 2: 1 per frame, 3..7: about 2, 3, 6, 12, 24 per frame.
  * Scenes: 0 = three-body chaos (masses 8, 8, 8), 1 = Sun + Earth (64, 1, massless).
  */
 
@@ -117,7 +117,7 @@ module tt_um_zarovs_nbody (
   reg [2:0] state;
   reg [3:0] t;          // clock within a pass
   reg [2:0] pair;       // 0..5: (0,1) (0,2) (1,0) (1,2) (2,0) (2,1)
-  reg [1:0] k;          // LUT bit being applied
+  reg [2:0] k;          // LUT bit being applied
   reg       cx, cy;     // carries of the x / y serial adders
   reg [7:0] dxr, dyr;   // D[10:3], then {sign of D, M = (|D| >> 3) mod 128}
   reg       zx, zy;     // D[2:0] == 0
@@ -142,37 +142,33 @@ module tt_um_zarovs_nbody (
   wire       xbig = mxm >= mym;
   wire [6:0] hi = xbig ? mxm : mym;
   wire [6:0] lo = xbig ? mym : mxm;
-  wire [7:0] oct = {1'b0, hi} + {3'b000, lo[6:2]};
+  wire [7:0] oct = {1'b0, hi} + {3'b000, lo[6:2]} + {4'b0000, lo[6:3]};   // max + 3/8 min
 
   reg [2:0] e;       // leading one of oct, at least 2
-  reg [1:0] mant;
+  reg [3:0] mant;    // the next 4 bits
   always @(*) begin
     casez (oct)
-      8'b1???????: begin e = 3'd7; mant = oct[6:5]; end
-      8'b01??????: begin e = 3'd6; mant = oct[5:4]; end
-      8'b001?????: begin e = 3'd5; mant = oct[4:3]; end
-      8'b0001????: begin e = 3'd4; mant = oct[3:2]; end
-      8'b00001???: begin e = 3'd3; mant = oct[2:1]; end
-      8'b000001??: begin e = 3'd2; mant = oct[1:0]; end
-      default:     begin e = 3'd2; mant = 2'd0;     end
+      8'b1???????: begin e = 3'd7; mant = oct[6:3]; end
+      8'b01??????: begin e = 3'd6; mant = oct[5:2]; end
+      8'b001?????: begin e = 3'd5; mant = oct[4:1]; end
+      8'b0001????: begin e = 3'd4; mant = oct[3:0]; end
+      8'b00001???: begin e = 3'd3; mant = {oct[2:0], 1'b0}; end
+      8'b000001??: begin e = 3'd2; mant = {oct[1:0], 2'b00}; end
+      default:     begin e = 3'd2; mant = 4'd0; end
     endcase
   end
-
-  reg [2:0] lut;
-  always @(*) begin
-    case (mant)
-      2'd0:    lut = 3'd6;
-      2'd1:    lut = 3'd3;
-      2'd2:    lut = 3'd2;
-      default: lut = 3'd1;
-    endcase
-  end
+  // 1/r^3 table, ~32 / (1 + (m + 0.5)/16)^3: one kick pass per set bit
+  reg [4:0] lut;
+  always @(*) case (mant)
+    4'd0: lut = 29; 4'd1: lut = 24; 4'd2: lut = 21; 4'd3: lut = 18; 4'd4: lut = 15; 4'd5: lut = 13; 4'd6: lut = 12; 4'd7: lut = 10;
+    4'd8: lut = 9; 4'd9: lut = 8; 4'd10: lut = 7; 4'd11: lut = 6; 4'd12: lut = 6; 4'd13: lut = 5; 4'd14: lut = 5; default: lut = 4;
+  endcase
   wire kon = lut[k] & (code_j != 3'd0);
 
-  // shift for this pass: 3e - 6 - code_j - k, softened to at least -4. M < 2^(e+1),
+  // shift for this pass: 3e - 4 - code_j - k, softened to at least -4. M < 2^(e+1),
   // so the kick round(M >> sh) always fits in 11 bits: only the sum can overflow.
   wire [5:0] e3 = {2'b00, e, 1'b0} + {3'b000, e};
-  wire signed [5:0] shr = $signed(e3) - 6'sd6 - $signed({3'b000, code_j}) - $signed({4'b0000, k});
+  wire signed [5:0] shr = $signed(e3) - 6'sd4 - $signed({3'b000, code_j}) - $signed({3'b000, k});
   wire signed [5:0] sh  = (shr < -6'sd4) ? -6'sd4 : shr;
   // tap index for clock t: bit (t - 1) of M >> sh (t = 0: the rounding bit)
   wire signed [5:0] q   = $signed({2'b00, t}) + sh - 6'sd1;
@@ -263,9 +259,9 @@ module tt_um_zarovs_nbody (
       localparam [V-1:0] CY0 = (g == 2) ? -12'sd760 : 12'sd0;
       localparam [V-1:0] CVX = (g == 2) ? 12'sd420 : -12'sd210;
       localparam [V-1:0] CVY = (g == 0) ? -12'sd290 : (g == 1) ? 12'sd290 : 12'sd0;
-      localparam [V-1:0] SX0 = (g == 0) ? -12'sd11 : (g == 1) ? 12'sd685 : -12'sd960;
+      localparam [V-1:0] SX0 = (g == 0) ? -12'sd12 : (g == 1) ? 12'sd740 : -12'sd960;
       localparam [V-1:0] SY0 = (g == 2) ? 12'sd960 : 12'sd0;
-      localparam [V-1:0] SVY = (g == 0) ? -12'sd14 : (g == 1) ? 12'sd880 : 12'sd0;
+      localparam [V-1:0] SVY = (g == 0) ? -12'sd13 : (g == 1) ? 12'sd809 : 12'sd0;
       wire init = (state == S_INIT);
       wire ix  = scene ? SX0[t] : CX0[t];
       wire iy  = scene ? SY0[t] : CY0[t];
@@ -297,12 +293,12 @@ module tt_um_zarovs_nbody (
 
   // --------------------------------------------------------- sequencer
   // after a pass (and its undo, if any): next LUT bit, next pair, or positions
-  wire last_k = (k == 2'd2);
+  wire last_k = (k == 3'd4);
   wire a_done = (t == 4'd12);
 
   always @(posedge clk) begin
     if (!rst_n) begin
-      state <= S_INIT; t <= 4'd0; pair <= 3'd0; k <= 2'd0;
+      state <= S_INIT; t <= 4'd0; pair <= 3'd0; k <= 3'd0;
     end else begin
       // serial carries; an S_A / S_U pass starts with n ^ rounding bit
       if ((state == S_A || state == S_U) && first) begin cx <= nx ^ tx; cy <= ny ^ ty; end
@@ -327,7 +323,7 @@ module tt_um_zarovs_nbody (
 
         // magnitudes: 7 clocks of (D ^ s) + (s & z) through bits 6..0
         S_ABS: begin
-          if (t == 4'd6) begin state <= S_A; t <= 4'd0; k <= 2'd0; end
+          if (t == 4'd6) begin state <= S_A; t <= 4'd0; k <= 3'd0; end
           else t <= t + 4'd1;
         end
 
@@ -337,7 +333,7 @@ module tt_um_zarovs_nbody (
             t <= 4'd0;
             ux <= ovx; uy <= ovy;
             if (state == S_A && (ovx | ovy)) state <= S_U;
-            else if (!last_k) begin state <= S_A; k <= k + 2'd1; end
+            else if (!last_k) begin state <= S_A; k <= k + 3'd1; end
             else if (pair != 3'd5) begin state <= S_D; pair <= pair + 3'd1; end
             else begin state <= S_P; pair <= 3'd0; end
           end else t <= t + 4'd1;

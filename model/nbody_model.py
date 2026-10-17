@@ -231,16 +231,25 @@ GA = 3          # extra right shift vs the old G=3 physics (weaker gravity for h
 SH_MIN = -4     # softening: shifts never go below -4, so round(M >> sh) always fits 12 bits
 
 
+# 1/r^3 table: 16 entries for 4 mantissa bits, ~32 / (1 + (m + 0.5)/16)^3
+LUT16 = [29, 24, 21, 18, 15, 13, 12, 10, 9, 8, 7, 6, 6, 5, 5, 4]
+
+
 def forceA(mx, my, code):
     """passes for one pair: list of shifts (one per set LUT bit); [] if massless"""
     if code == 0:
         return []
     hi, lo = (mx, my) if mx >= my else (my, mx)
-    o = hi + (lo >> 2)
+    o = hi + (lo >> 2) + (lo >> 3)          # max + 3/8 min ~ |r| (-3%..+7%)
     e = max(o.bit_length() - 1, 2)
-    m = (o >> (e - 2)) & 3 if o.bit_length() - 1 >= 2 else 0
-    lut = [6, 3, 2, 1][m]
-    return [max(3 * e - 10 + GA - (code - 1) - k, SH_MIN) for k in range(3) if (lut >> k) & 1]
+    if o < 4:
+        m = 0
+    elif e >= 4:
+        m = (o >> (e - 4)) & 15
+    else:
+        m = (o << (4 - e)) & 15
+    lut = LUT16[m]
+    return [max(3 * e - 4 - code - k, SH_MIN) for k in range(5) if (lut >> k) & 1]
 
 
 def addA(v, neg, M, sh):
@@ -282,8 +291,8 @@ def hwA_step(bodies, codes, stats=None):
             for (x, y, _, _), (vx, vy) in zip(bodies, newv)]
 
 
-# clocks per step in the RTL: 6 pairs x (11 D + 7 ABS + 3 x 13 A) + 3 x 12 P, + 13 per undo pass
-STEP_CLOCKS = 6 * (11 + 7 + 3 * 13) + 3 * 12
+# clocks per step in the RTL: 6 pairs x (11 D + 7 ABS + 5 x 13 A) + 3 x 12 P, + 13 per undo pass
+STEP_CLOCKS = 6 * (11 + 7 + 5 * 13) + 3 * 12
 UNDO_CLOCKS = 13
 
 

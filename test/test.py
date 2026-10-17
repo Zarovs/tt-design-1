@@ -90,13 +90,13 @@ async def test_start_scene(dut):
 @cocotb.test()
 async def test_sun_earth_scene(dut):
     # ui[3] at reset picks the Sun + Earth scene: Sun (mass 64, 16 px square) at
-    # world (-2, 0) -> screen (316, 240), Earth (mass 1, 4 px) at (85, 0) -> (490, 240)
+    # world (-2, 0) -> screen (316, 240), Earth (mass 1, 4 px) at (92, 0) -> (504, 240)
     beam = await start(dut, ui=0b1000)
     assert (await beam.goto(0, 312, 240))["rgb"] == YELLOW
     assert (await beam.goto(0, 316, 240))["rgb"] == YELLOW
     assert (await beam.goto(0, 400, 240))["rgb"] == BLACK
-    assert (await beam.goto(0, 490, 240))["rgb"] == CYAN
-    assert (await beam.goto(0, 494, 240))["rgb"] == BLACK   # Earth is small
+    assert (await beam.goto(0, 504, 240))["rgb"] == CYAN
+    assert (await beam.goto(0, 508, 240))["rgb"] == BLACK   # Earth is small
 
 
 @cocotb.test()

@@ -11,7 +11,7 @@ exe = os.environ.get("NB_EXE") or os.path.join(os.path.dirname(os.path.abspath(_
 out = subprocess.run([exe] + sys.argv[1:7], capture_output=True, text=True, check=True).stdout.split("\n")
 
 SCENES = {0: ([(-200, 0, -210, -290), (200, 0, -210, 290), (0, -760, 420, 0)], [4, 4, 4]),
-          1: ([(-11, 0, 0, -14), (685, 0, 0, 880), (-960, 960, 0, 0)], [7, 1, 0])}
+          1: ([(-12, 0, 0, -13), (740, 0, 0, 809), (-960, 960, 0, 0)], [7, 1, 0])}
 b, codes = SCENES[scene]
 codes = [d if c < 0 else c for c, d in zip((c0, c1, c2), codes)]
 

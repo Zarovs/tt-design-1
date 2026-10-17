@@ -31,7 +31,7 @@ if __name__ == "__main__":
     steps = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
     best = []
     for r in range(50, 100, 2):
-        for dv in (-0.03, -0.02, -0.01, 0.0, 0.01, 0.02, 0.03):
+        for dv in [x / 100 for x in range(-10, 11)]:
             res, t = trial(r, dv, steps)
             if res:
                 best.append((res[1] / res[0], r, dv, res))
