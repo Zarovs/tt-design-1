@@ -98,29 +98,98 @@ module tt_um_zarovs_solar_system (
   end
 
   // ------------------------------------------------- orbit stepping
-  // Steps happen on the first 1/2/4/8 clocks of line 480 (vertical blanking).
-  wire [3:0] nsteps = 4'd1 << speed;
-  wire step = !pause && (vpos == 10'd480) && (hpos[9:3] == 7'd0)
-              && ({1'b0, hpos[2:0]} < nsteps);
+  // Orbits are updated bit-serially by one shared 1-bit adder during
+  // vertical blanking, instead of two full-width adders per body.
+  // One Minsky step for one body is two passes over its W bits:
+  //   pass 0: x = x - (y >>> K)      pass 1: y = y + (x >>> K)
+  // Both registers rotate right one bit per clock (LSB first). The bit
+  // y[i+K] needed at clock i sits at position K of the rotating register;
+  // once i+K >= W it is the sign bit, captured at clock 0.
+  // A full step for all 5 bodies takes 2*(13+15+17+10+18) = 146 clocks, so
+  // even 8 steps (1168 clocks) finish inside blanking (36000 clocks).
+  localparam NB = 5;   // bodies: 0 mercury, 1 venus, 2 earth, 3 moon, 4 mars
 
-  // Fixed point with F = K + 1 fraction bits: enough that truncation in
-  // the shifts keeps each planet within about 1.5 px of its ring.
-  // The period of each orbit is about 2*pi*2^K steps.
+  reg       busy;
+  reg [2:0] body;
+  reg       pass;
+  reg [4:0] bit_i;
+  reg [3:0] steps_left;
+  reg       carry, sign;
+
+  reg [4:0] w_cur, wk_cur;   // W and W-K of the current body
+  always @(*) begin
+    case (body)
+      3'd0:    begin w_cur = 5'd13; wk_cur = 5'd8;  end
+      3'd1:    begin w_cur = 5'd15; wk_cur = 5'd9;  end
+      3'd2:    begin w_cur = 5'd17; wk_cur = 5'd10; end
+      3'd3:    begin w_cur = 5'd10; wk_cur = 5'd6;  end
+      default: begin w_cur = 5'd18; wk_cur = 5'd10; end
+    endcase
+  end
+
+  wire [NB-1:0] a_bits, tap_bits, sgn_bits;
+  wire a_cur = a_bits[body];
+  wire tb  = (bit_i < wk_cur) ? tap_bits[body] : sign;   // (y >>> K) bit i
+  wire bb  = pass ? tb : ~tb;                            // subtract on pass 0
+  wire cin = (bit_i == 5'd0) ? ~pass : carry;            // +1 for two's complement
+  wire new_bit = a_cur ^ bb ^ cin;
+
+  wire last_bit  = (bit_i == w_cur - 5'd1);
+  wire last_body = (body == NB - 1);
+
+  always @(posedge clk) begin
+    if (!rst_n) begin
+      busy <= 1'b0; body <= 3'd0; pass <= 1'b0; bit_i <= 5'd0;
+      steps_left <= 4'd0; carry <= 1'b0; sign <= 1'b0;
+    end else if (!busy) begin
+      if (!pause && vpos == 10'd480 && hpos == 10'd0) begin
+        busy <= 1'b1;
+        steps_left <= (4'd1 << speed) - 4'd1;
+      end
+    end else begin
+      carry <= (a_cur & bb) | (a_cur & cin) | (bb & cin);
+      if (bit_i == 5'd0) sign <= sgn_bits[body];
+      if (!last_bit) begin
+        bit_i <= bit_i + 5'd1;
+      end else begin
+        bit_i <= 5'd0;
+        pass  <= ~pass;
+        if (pass) begin
+          if (!last_body) begin
+            body <= body + 3'd1;
+          end else begin
+            body <= 3'd0;
+            if (steps_left == 4'd0) busy <= 1'b0;
+            else steps_left <= steps_left - 4'd1;
+          end
+        end
+      end
+    end
+  end
+
   // px/py are the integer pixel offsets from the sun.
   wire signed [10:0] mer_px, mer_py, ven_px, ven_py, ear_px, ear_py;
   wire signed [10:0] moo_ox, moo_oy, mar_px, mar_py;
 
-  //                    width  K      F      start x         start y        radius
-  orbit #(.W(13), .K(5), .F(6), .X0(13'sd3584),   .Y0(13'sd0))
-      u_mercury (.clk(clk), .rst_n(rst_n), .step(step), .px(mer_px), .py(mer_py));  // 56
-  orbit #(.W(15), .K(6), .F(7), .X0(15'sd0),      .Y0(15'sd12800))
-      u_venus   (.clk(clk), .rst_n(rst_n), .step(step), .px(ven_px), .py(ven_py));  // 100
-  orbit #(.W(17), .K(7), .F(8), .X0(-17'sd36084), .Y0(-17'sd13134))
-      u_earth   (.clk(clk), .rst_n(rst_n), .step(step), .px(ear_px), .py(ear_py));  // 150
-  orbit #(.W(10), .K(4), .F(5), .X0(10'sd448),    .Y0(10'sd0))
-      u_moon    (.clk(clk), .rst_n(rst_n), .step(step), .px(moo_ox), .py(moo_oy));  // 14 around earth
-  orbit #(.W(18), .K(8), .F(9), .X0(18'sd52480),  .Y0(-18'sd90898))
-      u_mars    (.clk(clk), .rst_n(rst_n), .step(step), .px(mar_px), .py(mar_py));  // 205
+  // Fixed point with F = K + 1 fraction bits: enough that truncation in
+  // the shifts keeps each planet within about 1.5 px of its ring.
+  // The period of each orbit is about 2*pi*2^K steps.
+  //                     width  K      F      start x         start y        radius
+  orbit_serial #(.W(13), .K(5), .F(6), .X0(13'sd3584),   .Y0(13'sd0)) u_mercury (
+      .clk(clk), .rst_n(rst_n), .sel(busy && body == 3'd0), .pass(pass), .new_bit(new_bit),
+      .a(a_bits[0]), .tap(tap_bits[0]), .sgn(sgn_bits[0]), .px(mer_px), .py(mer_py));  // 56
+  orbit_serial #(.W(15), .K(6), .F(7), .X0(15'sd0),      .Y0(15'sd12800)) u_venus (
+      .clk(clk), .rst_n(rst_n), .sel(busy && body == 3'd1), .pass(pass), .new_bit(new_bit),
+      .a(a_bits[1]), .tap(tap_bits[1]), .sgn(sgn_bits[1]), .px(ven_px), .py(ven_py));  // 100
+  orbit_serial #(.W(17), .K(7), .F(8), .X0(-17'sd36084), .Y0(-17'sd13134)) u_earth (
+      .clk(clk), .rst_n(rst_n), .sel(busy && body == 3'd2), .pass(pass), .new_bit(new_bit),
+      .a(a_bits[2]), .tap(tap_bits[2]), .sgn(sgn_bits[2]), .px(ear_px), .py(ear_py));  // 150
+  orbit_serial #(.W(10), .K(4), .F(5), .X0(10'sd448),    .Y0(10'sd0)) u_moon (
+      .clk(clk), .rst_n(rst_n), .sel(busy && body == 3'd3), .pass(pass), .new_bit(new_bit),
+      .a(a_bits[3]), .tap(tap_bits[3]), .sgn(sgn_bits[3]), .px(moo_ox), .py(moo_oy));  // 14 around earth
+  orbit_serial #(.W(18), .K(8), .F(9), .X0(18'sd52480),  .Y0(-18'sd90898)) u_mars (
+      .clk(clk), .rst_n(rst_n), .sel(busy && body == 3'd4), .pass(pass), .new_bit(new_bit),
+      .a(a_bits[4]), .tap(tap_bits[4]), .sgn(sgn_bits[4]), .px(mar_px), .py(mar_py));  // 205
 
   wire signed [10:0] moo_px = ear_px + moo_ox;
   wire signed [10:0] moo_py = ear_py + moo_oy;
@@ -237,10 +306,10 @@ module tt_um_zarovs_solar_system (
 
 endmodule
 
-// Minsky circle: x -= y >>> K; y += x >>> K (using the new x).
-// Area-preserving, so the orbit stays closed forever.
-// px/py: integer part (x >>> F), sign-extended to 11 bits.
-module orbit #(
+// Orbit state for one body, updated bit-serially by the shared adder.
+// While sel is high both registers rotate right one bit per clock; the
+// register being updated (x on pass 0, y on pass 1) takes new_bit at its MSB.
+module orbit_serial #(
     parameter W = 12,
     parameter K = 5,
     parameter F = 6,
@@ -249,23 +318,30 @@ module orbit #(
 ) (
     input  wire               clk,
     input  wire               rst_n,
-    input  wire               step,
+    input  wire               sel,
+    input  wire               pass,
+    input  wire               new_bit,
+    output wire               a,      // current bit of the register being updated
+    output wire               tap,    // bit K of the other register
+    output wire               sgn,    // sign of the other register
     output wire signed [10:0] px,
     output wire signed [10:0] py
 );
-  reg  signed [W-1:0] x, y;
-  wire signed [W-1:0] x_next = x - (y >>> K);
-  wire signed [W-1:0] y_next = y + (x_next >>> K);
+  reg [W-1:0] x, y;
 
   always @(posedge clk) begin
     if (!rst_n) begin
       x <= X0;
       y <= Y0;
-    end else if (step) begin
-      x <= x_next;
-      y <= y_next;
+    end else if (sel) begin
+      x <= {pass ? x[0] : new_bit, x[W-1:1]};
+      y <= {pass ? new_bit : y[0], y[W-1:1]};
     end
   end
+
+  assign a   = pass ? y[0]   : x[0];
+  assign tap = pass ? x[K]   : y[K];
+  assign sgn = pass ? x[W-1] : y[W-1];
 
   assign px = {{(11-(W-F)){x[W-1]}}, x[W-1:F]};
   assign py = {{(11-(W-F)){y[W-1]}}, y[W-1:F]};
