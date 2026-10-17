@@ -23,7 +23,8 @@
  *   menu off: ui[1] pause, ui[6:4] speed, ui[3] scene (read at reset)
  *   menu on:  ui[1..3] select body 0..2, ui[6:4] mass code for the selected bodies
  * Mass code 0 = massless, 1..7 = mass 1, 2, 4 ... 64.
- * Speed 0: 1 step every 4 frames, 1: every 2nd frame, 2: 1 per frame, 3..7: about 3, 5, 9, 17, 34 per frame.
+ * Speed 0..2: 1 step per frame, 3..7: about 3, 5, 9, 17, 34 per frame. (Lite: no frame skipping,
+ * and bodies are drawn with their wrapped copies at the screen sides.)
  * Scenes: 0 = three-body chaos (masses 8, 8, 8), 1 = Sun + Earth (64, 1, massless).
  */
 
@@ -100,7 +101,7 @@ module tt_um_zarovs_nbody (
     if (!rst_n) fc <= 2'd0;
     else if (hlast && vlast) fc <= fc + 2'd1;
   end
-  wire frame_on = (spd == 3'd0) ? (fc == 2'd0) : (spd == 3'd1) ? !fc[0] : 1'b1;
+  wire frame_on = 1'b1;
   // fast speeds: keep starting steps while within the first 2^(spd-3) lines of blanking
   wire [5:0] vline = vpos[5:0] - 6'd32;     // vpos - 480 for vpos in 480..524
   wire       more  = (spd >= 3'd3) && ((vline >> (spd - 3'd3)) == 6'd0);
@@ -372,7 +373,7 @@ module tt_um_zarovs_nbody (
   wire [7:0] d1x = wx - px[1][P-1:3], d1y = wy - py[1][P-1:3];
   wire [7:0] d2x = wx - px[2][P-1:3], d2y = wy - py[2][P-1:3];
   // bodies only inside the 512-pixel world window (no wrapped ghosts outside it)
-  wire in_world = (hpos >= 10'd64) && (hpos < 10'd576);
+  wire in_world = 1'b1;
 
   // one shared shape test: the first body whose window holds this pixel
   wire w0 = in_world && (d0x[7:3] == 5'd0) && (d0y[7:3] == 5'd0);

@@ -33,7 +33,7 @@ Connect a TinyVGA PMOD and a monitor, and clock the design at 25.175 MHz.
 **Controls** with the menu off (`ui[0]` low):
 
 - `ui[1]`: pause.
-- `ui[6:4]`: speed. 0 (default) = one step every 4 frames, 1 = every 2nd frame, 2 = one step per frame, 3..7 = about 3, 5, 9, 17 and 34 steps per frame.
+- `ui[6:4]`: speed. 0..2 = one step per frame (default), 3..7 = about 3, 5, 9, 17 and 34 steps per frame.
 
 **Menu** (`ui[0]` high): `ui[1]`, `ui[2]`, `ui[3]` select bodies 0, 1, 2 (several at once is fine), and `ui[6:4]` sets the selected bodies' mass code: 0 = massless, 1..7 = mass 1, 2, 4, 8, 16, 32, 64. The simulation keeps running. When you turn the menu off, the speed and pause switches take effect again.
 
