@@ -218,3 +218,82 @@ def hw_scene(p=HW):
     drift = v3 / 2                          # binary moves the other way
     init = [(-25, 0, -drift, -vb), (25, 0, -drift, vb), (0, -95, v3, 0)]
     return [to_fixed(p, *b) for b in init]
+
+
+# ---------------------------------------------------------------------------
+# Version 2 (plan phase A): exact r^2, half-exponent LUT, mass codes, clamping.
+#   r2 = dx^2 + dy^2 (exact), floored at R2MIN (softening)
+#   e2 = leading one of r2 = 2q + p;  m = next M2 bits
+#   r^-3 = r2^-1.5 ~ LUT2[p][m] / 2^(LB2 + 3q)
+#   dv = mass * LUT2 * d >> (3q + LB2 + G - 6 - FV)   (sum of rounded shifts)
+#   mass code 0 = massless, code c>0 = 2^(c-1)
+class V2:
+    I, F, V, FV, G = 8, 3, 12, 10, 6
+    M2 = 3          # mantissa bits of r2
+    LB2 = 6         # LUT scale 2^LB2
+    R2MIN = 16      # softening: r >= 4 px
+
+
+def lut2_table(p=V2):
+    t = []
+    for par in (0, 1):
+        for mm in range(1 << p.M2):
+            f = (mm + 0.5) / (1 << p.M2)
+            t.append(round((1 << p.LB2) * 2 ** (-1.5 * par) * (1 + f) ** -1.5))
+    return t        # index = par * 2^M2 + m
+
+
+LUT2 = lut2_table()
+
+
+def sat2(v, bits):
+    lo, hi = -(1 << (bits - 1)), (1 << (bits - 1)) - 1
+    return max(lo, min(hi, v))
+
+
+def force2(dx, dy, mcode, p=V2):
+    """returns (c, sh0): dv = sum over set bits k of c of round(d >> (sh0 - k))"""
+    if mcode == 0:
+        return 0, 0
+    r2 = max(dx * dx + dy * dy, p.R2MIN)
+    e2 = r2.bit_length() - 1
+    q, par = e2 >> 1, e2 & 1
+    m = (r2 >> (e2 - p.M2)) & ((1 << p.M2) - 1)
+    c = LUT2[par * (1 << p.M2) + m]
+    sh0 = 3 * q + p.LB2 + p.G - 6 - p.FV - (mcode - 1)
+    return c, sh0
+
+
+def hw2_step(bodies, mcodes, p=V2):
+    W = p.I + p.F
+    n = len(bodies)
+    newv = []
+    for i in range(n):
+        xi, yi, vxi, vyi = bodies[i]
+        for j in range(n):
+            if j == i:
+                continue
+            # sign-magnitude throughout, so the force on i from j is exactly
+            # minus the force on j from i (momentum is conserved)
+            DX = wrap(bodies[j][0] - xi, W)
+            DY = wrap(bodies[j][1] - yi, W)
+            ax = (abs(DX) + (1 << (p.F - 1))) >> p.F       # |dx| rounded to whole px
+            ay = (abs(DY) + (1 << (p.F - 1))) >> p.F
+            c, sh0 = force2(ax, ay, mcodes[j], p)
+            # exact product c*|d| first, then ONE rounded shift (rounding each
+            # partial term separately piles up into a fake force)
+            tx = ashr(c * ax, sh0, True)
+            ty = ashr(c * ay, sh0, True)
+            vxi = sat2(vxi + (tx if DX >= 0 else -tx), p.V)
+            vyi = sat2(vyi + (ty if DY >= 0 else -ty), p.V)
+        newv.append((vxi, vyi))
+    def mv(v):     # symmetric rounding of v >> (FV - F)
+        a = ashr(abs(v), p.FV - p.F, True)
+        return a if v >= 0 else -a
+    return [(wrap(x + mv(vx), W), wrap(y + mv(vy), W), vx, vy)
+            for (x, y, _, _), (vx, vy) in zip(bodies, newv)]
+
+
+def fix2(x, y, vx, vy, p=V2):
+    return (wrap(round(x * (1 << p.F)), p.I + p.F), wrap(round(y * (1 << p.F)), p.I + p.F),
+            sat2(round(vx * (1 << p.FV)), p.V), sat2(round(vy * (1 << p.FV)), p.V))
