@@ -82,7 +82,7 @@ module tt_um_zarovs_nbody (
   reg [2:0] state;
   reg [3:0] t;          // bit index within a pass
   reg [2:0] pair;       // 0..5: (0,1) (0,2) (1,0) (1,2) (2,0) (2,1)
-  reg [2:0] k;          // bit of c being applied
+  reg [1:0] k;          // bit of the LUT value being applied
   reg [1:0] pb;         // body in the position phase
   reg       cx, cy;     // carries of the two serial adders
   reg [7:0] dxr, dyr;   // integer part of r_j - r_i (shifted in LSB first)
@@ -136,7 +136,7 @@ module tt_um_zarovs_nbody (
   // c = mass_j * lut = lut << mexp_j: bit k of lut is applied with shift
   // 3e - 10 - mexp_j - k, range -15..11
   wire [5:0] e3 = {2'b00, e, 1'b0} + {3'b000, e};
-  wire signed [5:0] sh = $signed(e3) - 6'sd10 - $signed({4'b0000, mexp_j}) - $signed({3'b000, k});
+  wire signed [5:0] sh = $signed(e3) - 6'sd10 - $signed({4'b0000, mexp_j}) - $signed({4'b0000, k});
   // Phase A runs t = 0..12: t = 0 only loads the rounding bit d[sh-1] into the
   // carry, t = 1..12 add bit (t-1) of round(d >>> sh) into v.
   wire signed [5:0] q  = $signed({2'b00, t}) + sh - 6'sd1;   // tap index into dxr/dyr
@@ -149,7 +149,7 @@ module tt_um_zarovs_nbody (
     end
   endfunction
 
-  wire kon = lut[k[1:0]];
+  wire kon = lut[k];
 
   // --------------------------------------------- serial adder operands
   wire [V-1:0] vxb = vx[pb];
@@ -243,7 +243,7 @@ module tt_um_zarovs_nbody (
 
   always @(posedge clk) begin
     if (!rst_n) begin
-      state <= S_INIT; t <= 4'd0; pair <= 3'd0; k <= 3'd0; pb <= 2'd0;
+      state <= S_INIT; t <= 4'd0; pair <= 3'd0; k <= 2'd0; pb <= 2'd0;
       cx <= 1'b0; cy <= 1'b0; dxr <= 8'd0; dyr <= 8'd0; vsx <= 1'b0; vsy <= 1'b0;
     end else begin
       if (state == S_A && first) begin   // rounding bit, no addition yet
@@ -270,14 +270,14 @@ module tt_um_zarovs_nbody (
             dxr <= {sx, dxr[7:1]};
             dyr <= {sy, dyr[7:1]};
           end
-          if (last_p) begin state <= S_A; t <= 4'd0; k <= 3'd0; end
+          if (last_p) begin state <= S_A; t <= 4'd0; k <= 2'd0; end
           else t <= t + 4'd1;
         end
 
         S_A: begin
           if (t == V) begin
             t <= 4'd0;
-            if (k != 3'd2) k <= k + 3'd1;
+            if (k != 2'd2) k <= k + 2'd1;
             else if (pair != 3'd5) begin state <= S_D; pair <= pair + 3'd1; end
             else begin state <= S_P; pb <= 2'd0; end
           end else t <= t + 4'd1;

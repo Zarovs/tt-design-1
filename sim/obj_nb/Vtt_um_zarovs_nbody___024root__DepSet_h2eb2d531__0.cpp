@@ -501,13 +501,10 @@ VL_INLINE_OPT void Vtt_um_zarovs_nbody___024root___ico_sequent__TOP__0(Vtt_um_za
                                                  | (1U 
                                                     & (IData)(vlSelf->tt_um_zarovs_nbody__DOT__syp)));
     }
-    vlSelf->tt_um_zarovs_nbody__DOT__kon = ((2U >= 
-                                             (3U & (IData)(vlSelf->tt_um_zarovs_nbody__DOT__k))) 
+    vlSelf->tt_um_zarovs_nbody__DOT__kon = ((2U >= (IData)(vlSelf->tt_um_zarovs_nbody__DOT__k)) 
                                             && (1U 
                                                 & ((IData)(vlSelf->tt_um_zarovs_nbody__DOT__lut) 
-                                                   >> 
-                                                   (3U 
-                                                    & (IData)(vlSelf->tt_um_zarovs_nbody__DOT__k)))));
+                                                   >> (IData)(vlSelf->tt_um_zarovs_nbody__DOT__k))));
     vlSelf->tt_um_zarovs_nbody__DOT__sh = (0x3fU & 
                                            ((((IData)(vlSelf->tt_um_zarovs_nbody__DOT__e3) 
                                               - (IData)(0xaU)) 
@@ -1020,7 +1017,7 @@ VL_INLINE_OPT void Vtt_um_zarovs_nbody___024root___nba_sequent__TOP__6(Vtt_um_za
                 __Vdly__tt_um_zarovs_nbody__DOT__t = 0U;
                 if ((2U != (IData)(vlSelf->tt_um_zarovs_nbody__DOT__k))) {
                     vlSelf->tt_um_zarovs_nbody__DOT__k 
-                        = (7U & ((IData)(1U) + (IData)(vlSelf->tt_um_zarovs_nbody__DOT__k)));
+                        = (3U & ((IData)(1U) + (IData)(vlSelf->tt_um_zarovs_nbody__DOT__k)));
                 } else if ((5U != (IData)(vlSelf->tt_um_zarovs_nbody__DOT__pair))) {
                     __Vdly__tt_um_zarovs_nbody__DOT__pair 
                         = (7U & ((IData)(1U) + (IData)(vlSelf->tt_um_zarovs_nbody__DOT__pair)));
@@ -1310,13 +1307,10 @@ VL_INLINE_OPT void Vtt_um_zarovs_nbody___024root___nba_sequent__TOP__6(Vtt_um_za
                                            (((IData)(vlSelf->tt_um_zarovs_nbody__DOT__e) 
                                              << 1U) 
                                             + (IData)(vlSelf->tt_um_zarovs_nbody__DOT__e)));
-    vlSelf->tt_um_zarovs_nbody__DOT__kon = ((2U >= 
-                                             (3U & (IData)(vlSelf->tt_um_zarovs_nbody__DOT__k))) 
+    vlSelf->tt_um_zarovs_nbody__DOT__kon = ((2U >= (IData)(vlSelf->tt_um_zarovs_nbody__DOT__k)) 
                                             && (1U 
                                                 & ((IData)(vlSelf->tt_um_zarovs_nbody__DOT__lut) 
-                                                   >> 
-                                                   (3U 
-                                                    & (IData)(vlSelf->tt_um_zarovs_nbody__DOT__k)))));
+                                                   >> (IData)(vlSelf->tt_um_zarovs_nbody__DOT__k))));
 }
 
 VL_INLINE_OPT void Vtt_um_zarovs_nbody___024root___nba_comb__TOP__0(Vtt_um_zarovs_nbody___024root* vlSelf) {

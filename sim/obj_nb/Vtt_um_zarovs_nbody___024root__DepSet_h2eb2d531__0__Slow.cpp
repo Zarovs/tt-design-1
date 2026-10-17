@@ -255,7 +255,7 @@ VL_ATTR_COLD void Vtt_um_zarovs_nbody___024root___ctor_var_reset(Vtt_um_zarovs_n
     vlSelf->tt_um_zarovs_nbody__DOT__state = VL_RAND_RESET_I(3);
     vlSelf->tt_um_zarovs_nbody__DOT__t = VL_RAND_RESET_I(4);
     vlSelf->tt_um_zarovs_nbody__DOT__pair = VL_RAND_RESET_I(3);
-    vlSelf->tt_um_zarovs_nbody__DOT__k = VL_RAND_RESET_I(3);
+    vlSelf->tt_um_zarovs_nbody__DOT__k = VL_RAND_RESET_I(2);
     vlSelf->tt_um_zarovs_nbody__DOT__pb = VL_RAND_RESET_I(2);
     vlSelf->tt_um_zarovs_nbody__DOT__cx = VL_RAND_RESET_I(1);
     vlSelf->tt_um_zarovs_nbody__DOT__cy = VL_RAND_RESET_I(1);

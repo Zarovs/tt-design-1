@@ -57,7 +57,7 @@ class alignas(VL_CACHE_LINE_BYTES) Vtt_um_zarovs_nbody___024root final : public 
         CData/*2:0*/ tt_um_zarovs_nbody__DOT__state;
         CData/*3:0*/ tt_um_zarovs_nbody__DOT__t;
         CData/*2:0*/ tt_um_zarovs_nbody__DOT__pair;
-        CData/*2:0*/ tt_um_zarovs_nbody__DOT__k;
+        CData/*1:0*/ tt_um_zarovs_nbody__DOT__k;
         CData/*1:0*/ tt_um_zarovs_nbody__DOT__pb;
         CData/*0:0*/ tt_um_zarovs_nbody__DOT__cx;
         CData/*0:0*/ tt_um_zarovs_nbody__DOT__cy;

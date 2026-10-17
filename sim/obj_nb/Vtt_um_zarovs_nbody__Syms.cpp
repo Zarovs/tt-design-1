@@ -88,7 +88,7 @@ Vtt_um_zarovs_nbody__Syms::Vtt_um_zarovs_nbody__Syms(VerilatedContext* contextp,
         __Vscope_tt_um_zarovs_nbody.varInsert(__Vfinal,"hpos", &(TOP.tt_um_zarovs_nbody__DOT__hpos), false, VLVT_UINT16,VLVD_NODIR|VLVF_PUB_RW,1 ,9,0);
         __Vscope_tt_um_zarovs_nbody.varInsert(__Vfinal,"hsync", &(TOP.tt_um_zarovs_nbody__DOT__hsync), false, VLVT_UINT8,VLVD_NODIR|VLVF_PUB_RW,0);
         __Vscope_tt_um_zarovs_nbody.varInsert(__Vfinal,"in_world", &(TOP.tt_um_zarovs_nbody__DOT__in_world), false, VLVT_UINT8,VLVD_NODIR|VLVF_PUB_RW,0);
-        __Vscope_tt_um_zarovs_nbody.varInsert(__Vfinal,"k", &(TOP.tt_um_zarovs_nbody__DOT__k), false, VLVT_UINT8,VLVD_NODIR|VLVF_PUB_RW,1 ,2,0);
+        __Vscope_tt_um_zarovs_nbody.varInsert(__Vfinal,"k", &(TOP.tt_um_zarovs_nbody__DOT__k), false, VLVT_UINT8,VLVD_NODIR|VLVF_PUB_RW,1 ,1,0);
         __Vscope_tt_um_zarovs_nbody.varInsert(__Vfinal,"kon", &(TOP.tt_um_zarovs_nbody__DOT__kon), false, VLVT_UINT8,VLVD_NODIR|VLVF_PUB_RW,0);
         __Vscope_tt_um_zarovs_nbody.varInsert(__Vfinal,"last_p", &(TOP.tt_um_zarovs_nbody__DOT__last_p), false, VLVT_UINT8,VLVD_NODIR|VLVF_PUB_RW,0);
         __Vscope_tt_um_zarovs_nbody.varInsert(__Vfinal,"last_v", &(TOP.tt_um_zarovs_nbody__DOT__last_v), false, VLVT_UINT8,VLVD_NODIR|VLVF_PUB_RW,0);
