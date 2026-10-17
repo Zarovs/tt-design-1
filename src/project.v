@@ -3,18 +3,19 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Three-body gravity simulator for Tiny Tapeout (1x1 tile), VGA 640x480.
- * Bit-exact with model/nbody_model.py hwA_step. All arithmetic is bit-serial
+ * Bit-exact with model/nbody_model.py hwA_frame. All arithmetic is bit-serial
  * (the state registers rotate past two 1-bit adders, one per axis) and runs
  * during vertical blanking.
  *
  * World: 256 x 256 torus, positions 8.3 fixed point, drawn at 2x scale.
- * Velocities: 12 bits, 10 fraction bits, saturating.
+ * Velocities: 12 bits, 10 fraction bits.
  *
  * Per ordered pair (i, j), D = r_j - r_i (wrapping):
- *   M = |D| >> 3 per axis                       (magnitude in whole pixels)
+ *   M = (|D| >> 3) mod 128 per axis             (magnitude in whole pixels)
  *   L = max(Mx, My) + min/4                     (octagonal distance ~ |r|)
  *   e = leading one of L (min 2), m = next 2 bits, c = LUT[m] ~ 8 / (1 + m/4)^3
- *   for each set bit k of c:  v_i += sign(D) * round(M >> (3e - 6 - code_j - k)), saturating
+ *   for each set bit k of c:  v_i += sign(D) * round(M >> max(3e - 6 - code_j - k, -4))
+ *   (a kick that would overflow v is undone: a speed limit)
  * The pull of j on i is exactly minus the pull of i on j, so momentum is conserved.
  * Then every position moves by round(v >> 7).
  *
@@ -22,7 +23,7 @@
  *   menu off: ui[1] pause, ui[6:4] speed, ui[3] scene (read at reset)
  *   menu on:  ui[1..3] select body 0..2, ui[6:4] mass code for the selected bodies
  * Mass code 0 = massless, 1..7 = mass 1, 2, 4 ... 64.
- * Speed 0: 1 step every 4 frames, 1: every 2nd frame, 2: 1 per frame, 3: 2, 4: 4, 5: 8, 6: 16, 7: 32.
+ * Speed 0: 1 step every 4 frames, 1: every 2nd frame, 2: 1 per frame, 3..7: about 3, 5, 9, 17, 34 per frame.
  * Scenes: 0 = three-body chaos (masses 8, 8, 8), 1 = Sun + Earth (64, 1, massless).
  */
 

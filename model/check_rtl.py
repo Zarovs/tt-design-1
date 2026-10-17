@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import nbody_model as M
 
 scene, c0, c1, c2, speed, frames = map(int, sys.argv[1:7])
-exe = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "sim", "obj_nb", "Vtt_um_zarovs_nbody")
+exe = os.environ.get("NB_EXE") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "sim", "obj_nb", "Vtt_um_zarovs_nbody")
 out = subprocess.run([exe] + sys.argv[1:7], capture_output=True, text=True, check=True).stdout.split("\n")
 
 SCENES = {0: ([(-200, 0, -210, -290), (200, 0, -210, 290), (0, -760, 420, 0)], [4, 4, 4]),
