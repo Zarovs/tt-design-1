@@ -284,6 +284,16 @@ module tt_um_zarovs_nbody (
     end
   endgenerate
 
+  // D register on its own gated clock: S_D shifts in D[10:3], S_ABS turns
+  // bits 6..0 into the magnitude
+  wire en_d = (state == S_D && t >= 4'd3) || (state == S_ABS);
+  wire gclk_d;
+  clkgate cg_d (.clk(clk), .en(en_d), .gclk(gclk_d));
+  always @(posedge gclk_d) begin
+    dxr <= {(state == S_D) ? sx : dxr[7], (state == S_D) ? dxr[7] : sx, dxr[6:1]};
+    dyr <= {(state == S_D) ? sy : dyr[7], (state == S_D) ? dyr[7] : sy, dyr[6:1]};
+  end
+
   // --------------------------------------------------------- sequencer
   // after a pass (and its undo, if any): next LUT bit, next pair, or positions
   wire last_k = (k == 2'd2);
@@ -310,14 +320,12 @@ module tt_um_zarovs_nbody (
         S_D: begin
           if (first)          begin zx <= ~sx;       zy <= ~sy;       end
           else if (t <= 4'd2) begin zx <= zx & ~sx;  zy <= zy & ~sy;  end
-          else begin dxr <= {sx, dxr[7:1]}; dyr <= {sy, dyr[7:1]}; end
           if (t == 4'd10) begin state <= S_ABS; t <= 4'd0; end
           else t <= t + 4'd1;
         end
 
         // magnitudes: 7 clocks of (D ^ s) + (s & z) through bits 6..0
         S_ABS: begin
-          dxr <= {dxr[7], sx, dxr[6:1]}; dyr <= {dyr[7], sy, dyr[6:1]};
           if (t == 4'd6) begin state <= S_A; t <= 4'd0; k <= 2'd0; end
           else t <= t + 4'd1;
         end
@@ -351,37 +359,31 @@ module tt_um_zarovs_nbody (
   end
 
   // ------------------------------------------------------------ drawing
-  // Body screen position: (320 + 2x, 240 + 2y) with x, y the signed integer parts.
-  wire signed [10:0] sxp = $signed({1'b0, hpos}) - 11'sd320;
-  wire signed [10:0] syp = $signed({1'b0, vpos}) - 11'sd240;
-
-  // inside the 16x16 window around a body (offset in -8..7 on both axes)
-  function automatic inwin(input [10:3] ox, input [10:3] oy);
-    inwin = ((ox == 8'h00) || (ox == 8'hFF)) && ((oy == 8'h00) || (oy == 8'hFF));
-  endfunction
-
-  // offsets in world pixels (wrapping like the world) plus the screen half-pixel bit
-  wire [7:0] wx = sxp[8:1];
-  wire [7:0] wy = syp[8:1];
+  // Body screen position: (320 + 2x, 240 + 2y) with x, y the integer parts.
+  // A body's 16x16 window spans world offsets -4..3; with the beam position
+  // taken 4 world pixels (8 screen pixels) ahead the offset d runs 0..7, so
+  // the window test is just d[7:3] == 0.
+  wire [9:0] hq = hpos - 10'd312;           // screen x - 320 + 8
+  wire [9:0] vq = vpos - 10'd232;           // screen y - 240 + 8
+  wire [7:0] wx = hq[8:1];
+  wire [7:0] wy = vq[8:1];
   wire [7:0] d0x = wx - px[0][P-1:3], d0y = wy - py[0][P-1:3];
   wire [7:0] d1x = wx - px[1][P-1:3], d1y = wy - py[1][P-1:3];
   wire [7:0] d2x = wx - px[2][P-1:3], d2y = wy - py[2][P-1:3];
-  wire [10:0] o0x = {{2{d0x[7]}}, d0x, sxp[0]}, o0y = {{2{d0y[7]}}, d0y, syp[0]};
-  wire [10:0] o1x = {{2{d1x[7]}}, d1x, sxp[0]}, o1y = {{2{d1y[7]}}, d1y, syp[0]};
-  wire [10:0] o2x = {{2{d2x[7]}}, d2x, sxp[0]}, o2y = {{2{d2y[7]}}, d2y, syp[0]};
   // bodies only inside the 512-pixel world window (no wrapped ghosts outside it)
-  wire in_world = (sxp[10:8] == 3'b000) || (sxp[10:8] == 3'b111);
+  wire in_world = (hpos >= 10'd64) && (hpos < 10'd576);
 
   // one shared shape test: the first body whose window holds this pixel
-  wire w0 = in_world && inwin(o0x[10:3], o0y[10:3]);
-  wire w1 = in_world && inwin(o1x[10:3], o1y[10:3]);
-  wire w2 = in_world && inwin(o2x[10:3], o2y[10:3]);
-  wire [3:0] selx = w0 ? o0x[3:0] : w1 ? o1x[3:0] : o2x[3:0];
-  wire [3:0] sely = w0 ? o0y[3:0] : w1 ? o1y[3:0] : o2y[3:0];
+  wire w0 = in_world && (d0x[7:3] == 5'd0) && (d0y[7:3] == 5'd0);
+  wire w1 = in_world && (d1x[7:3] == 5'd0) && (d1y[7:3] == 5'd0);
+  wire w2 = in_world && (d2x[7:3] == 5'd0) && (d2y[7:3] == 5'd0);
+  wire [2:0] selx = w0 ? d0x[2:0] : w1 ? d1x[2:0] : d2x[2:0];
+  wire [2:0] sely = w0 ? d0y[2:0] : w1 ? d1y[2:0] : d2y[2:0];
   wire [1:0] selm = w0 ? mcode0[2:1] : w1 ? mcode1[2:1] : mcode2[2:1];
-  // square |x|, |y| <= 1 + code/2 (one's complement |.|, centred on the half pixel)
-  wire [2:0] adx = selx[3] ? ~selx[2:0] : selx[2:0];
-  wire [2:0] ady = sely[3] ? ~sely[2:0] : sely[2:0];
+  // square |x|, |y| <= 1 + code/2 in screen pixels, centred on the half pixel:
+  // the screen offset is {d - 4, beam bit 0}, one's complement |.|
+  wire [2:0] adx = selx[2] ? {selx[1:0], hpos[0]} : ~{selx[1:0], hpos[0]};
+  wire [2:0] ady = sely[2] ? {sely[1:0], vpos[0]} : ~{sely[1:0], vpos[0]};
   wire [2:0] half = {1'b0, selm} + 3'd1;
   wire hit = (w0 | w1 | w2) && (adx <= half) && (ady <= half);
   wire on0 = hit && w0;
@@ -402,8 +404,7 @@ module tt_um_zarovs_nbody (
   assign uio_oe  = 8'h00;
 
   wire _unused = &{ena, ui_in[7], uio_in, lo[1:0], px[0][2:0], py[0][2:0], px[1][2:0], py[1][2:0],
-                   px[2][2:0], py[2][2:0], syp[10:9], o0x[2:0], o0y[2:0], o1x[2:0], o1y[2:0],
-                   o2x[2:0], o2y[2:0], e3[5], 1'b0};
+                   px[2][2:0], py[2][2:0], hq[9], hq[0], vq[9], vq[0], e3[5], 1'b0};
 
 endmodule
 
