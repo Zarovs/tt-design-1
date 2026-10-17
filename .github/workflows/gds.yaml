@@ -41,6 +41,14 @@ jobs:
           tim=$( { [ -n "$met" ] && grep -E '^timing__(setup|hold)__(ws|tns),|^timing__(setup|hold)_vio__count,|^route__drc_errors,' "$met"; } | enc)
           echo "::notice title=timing::${tim:-none found}"
           [ -n "$errs" ] && echo "::error title=first errors::${errs}"
+          # where the flow stopped: last step directories and any error-like lines
+          rundir=$(find . -type d -path '*runs/wokwi' 2>/dev/null | head -1)
+          if [ -n "$rundir" ]; then
+            last=$(ls -1 "$rundir" | grep -E '^[0-9]+-' | sort -n | tail -4 | enc)
+            echo "::notice title=last flow steps::${last:-none}"
+            errl=$(grep -rhiE 'error|fail|violat' "$rundir"/*/*.log 2>/dev/null | grep -viE '0 error|no error|errors: 0|error_|ERRORS=0' | tail -8 | cut -c1-200 | enc)
+            [ -n "$errl" ] && echo "::warning title=error lines::${errl}"
+          fi
           exit 0
 
   precheck:
