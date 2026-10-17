@@ -40,7 +40,7 @@ jobs:
           echo "::notice title=synthesis::${area:-none found}"
           # synthesis cell breakdown (by area) and which report it came from
           if [ -n "$stat" ]; then
-            cells=$(grep -E '^\s+sky130_fd_sc_hd__\S+\s+[0-9]+' "$stat" | sort -k2 -n -r | head -45 | awk '{print $1" "$2" "$3}' | enc)
+            cells=$(grep -E 'sky130_fd_sc_hd__' "$stat" | grep -vi 'chip area' | sort -k2 -g -r | head -45 | awk '{print $1" "$2" "$3}' | enc)
             echo "::notice title=synthesis cells (${stat})::${cells:-none}"
           fi
           met=$(find . -path '*runs/*final*' -name 'metrics.csv' 2>/dev/null | head -1)
