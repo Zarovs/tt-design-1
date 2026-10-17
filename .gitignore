@@ -11,3 +11,5 @@ test/results.xml
 test/gate_level_netlist.v
 sim/obj_dir/
 sim/out/
+sim/obj_nb/
+sim/obj_dir_*/
