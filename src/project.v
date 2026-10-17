@@ -303,28 +303,11 @@ module tt_um_zarovs_nbody (
   wire signed [10:0] sxp = $signed({1'b0, hpos}) - 11'sd320;
   wire signed [10:0] syp = $signed({1'b0, vpos}) - 11'sd240;
 
-  function automatic [6:0] sq4(input [3:0] v);
-    reg [3:0] a;
-    begin
-      a = v[3] ? (~v + 4'd1) : v;
-      sq4 = {3'b000, a} * {3'b000, a};
-    end
-  endfunction
-
   // inside the 16x16 window around a body (offset in -8..7 on both axes)
   function automatic inwin(input [10:3] ox, input [10:3] oy);
     inwin = ((ox == 8'h00) || (ox == 8'hFF)) && ((oy == 8'h00) || (oy == 8'hFF));
   endfunction
 
-  // radius 2 + mass (3..6 px), as r^2 + r
-  function automatic [6:0] rr(input [1:0] m);
-    case (m)
-      2'd0:    rr = 7'd12;
-      2'd1:    rr = 7'd20;
-      2'd2:    rr = 7'd30;
-      default: rr = 7'd42;
-    endcase
-  endfunction
 
   // Offsets in world pixels (8-bit, wrapping like the world) plus the screen
   // half-pixel bit: {wx - x, sxp[0]} equals sxp - 2x modulo 512.
@@ -347,7 +330,10 @@ module tt_um_zarovs_nbody (
   wire [3:0] selx = w0 ? o0x[3:0] : w1 ? o1x[3:0] : o2x[3:0];
   wire [3:0] sely = w0 ? o0y[3:0] : w1 ? o1y[3:0] : o2y[3:0];
   wire [1:0] selm = w0 ? mexp0    : w1 ? mexp1    : mexp2;
-  wire hit = (w0 | w1 | w2) && (({1'b0, sq4(selx)} + {1'b0, sq4(sely)}) <= {1'b0, rr(selm)});
+  // diamond |x| + |y| <= 3 + mass exponent (one's complement |.|, centred on the half pixel)
+  wire [2:0] adx = selx[3] ? ~selx[2:0] : selx[2:0];
+  wire [2:0] ady = sely[3] ? ~sely[2:0] : sely[2:0];
+  wire hit = (w0 | w1 | w2) && ({1'b0, adx} + {1'b0, ady} <= {2'b00, selm} + 4'd3);
   wire on0 = hit && w0;
   wire on1 = hit && !w0 && w1;
   wire on2 = hit && !w0 && !w1;

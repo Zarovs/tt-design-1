@@ -15,7 +15,7 @@ After all pairs, every position moves by `round(v >> 7)` (semi-implicit Euler, w
 
 **Hardware.** All arithmetic is bit-serial: the state registers rotate one bit per clock past two 1-bit adders, one per axis. The physics runs during vertical blanking. One step for all three bodies takes 336 clocks, and the speed setting chooses how many blanking lines are used, from 3 to 103 steps per frame. The 138 state bits sit behind six clock-gating cells, so they need no enable logic. The starting scene is shifted in serially after reset.
 
-**Drawing.** Each body is a disk whose radius grows with its mass. Per pixel, the design finds the first body whose 16x16 window contains the pixel and runs one shared disk test.
+**Drawing.** Each body is a small diamond that grows with its mass. Per pixel, the design finds the first body whose 16x16 window contains the pixel and runs one shared shape test.
 
 The RTL is bit-exact with the Python model in `model/nbody_model.py` (`hw_step`). `model/check_rtl.py` compares them frame by frame.
 
