@@ -380,13 +380,14 @@ module tt_um_zarovs_nbody (
   wire w2 = in_world && (d2x[7:3] == 5'd0) && (d2y[7:3] == 5'd0);
   wire [2:0] selx = w0 ? d0x[2:0] : w1 ? d1x[2:0] : d2x[2:0];
   wire [2:0] sely = w0 ? d0y[2:0] : w1 ? d1y[2:0] : d2y[2:0];
-  wire [1:0] selm = w0 ? mcode0[2:1] : w1 ? mcode1[2:1] : mcode2[2:1];
-  // square |x|, |y| <= 1 + code/2 in screen pixels, centred on the half pixel:
-  // the screen offset is {d - 4, beam bit 0}, one's complement |.|
-  wire [2:0] adx = selx[2] ? {selx[1:0], hpos[0]} : ~{selx[1:0], hpos[0]};
-  wire [2:0] ady = sely[2] ? {sely[1:0], vpos[0]} : ~{sely[1:0], vpos[0]};
-  wire [2:0] half = {1'b0, selm} + 3'd1;
-  wire hit = (w0 | w1 | w2) && (adx <= half) && (ady <= half);
+  wire [2:0] selc = w0 ? mcode0 : w1 ? mcode1 : mcode2;
+  // square: 4 px for masses up to 4, 8 px for 8..32, 16 px for 64. The world
+  // offset is d - 4 in -4..3; adx = one's complement |d - 4| in 0..3
+  wire [1:0] adx = selx[2] ? selx[1:0] : ~selx[1:0];
+  wire [1:0] ady = sely[2] ? sely[1:0] : ~sely[1:0];
+  wire m8  = selc[2];                       // mass >= 8: |offset| < 2 world px
+  wire m64 = &selc;                         // mass 64: the whole window
+  wire hit = (w0 | w1 | w2) && !((adx[1] | ady[1]) & !m64) && !((adx[0] | ady[0]) & !m8);
   wire on0 = hit && w0;
   wire on1 = hit && !w0 && w1;
   wire on2 = hit && !w0 && !w1;

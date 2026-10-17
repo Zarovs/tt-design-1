@@ -17,7 +17,7 @@ Two safety rules keep the integers well behaved. The shift never goes below -4: 
 
 **Hardware.** All arithmetic is bit-serial: the state registers rotate one bit per clock past two 1-bit adders, one per axis. The physics runs during vertical blanking; one step for all three bodies takes 378 clocks. The 138 state bits and the distance register sit behind clock-gating cells, so they need no enable logic. The starting scenes are shifted in serially after reset.
 
-**Drawing.** Each body is a square whose size shows its mass: yellow, cyan and pink for bodies 0, 1 and 2.
+**Drawing.** Each body is a square whose size shows its mass: 4 px for masses up to 4, 8 px for 8 to 32, and 16 px for 64. Bodies 0, 1 and 2 are yellow, cyan and pink.
 
 The RTL is bit-exact with the Python model in `model/nbody_model.py` (`hwA_frame`). `model/check_rtl.py` compares them frame by frame.
 
