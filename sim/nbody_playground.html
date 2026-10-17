@@ -1,0 +1,230 @@
+<title>Three-Body Bench</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=Chakra+Petch:wght@600&display=swap">
+<style>
+/* Layout: an instrument bench, the 256x256 world on the left, the chip's controls and live readouts on the right */
+:root {
+  --bg: #eef1f4; --panel: #ffffff; --ink: #1c2430; --muted: #5d6b7c; --line: #d3dae2;
+  --space: #0d1420; --accent: #2f6fd6; --ok: #1f8a4c; --warn: #b8560f;
+  --b0: #e8c400; --b1: #00b8c8; --b2: #e04fb0;
+  --display: "Chakra Petch", "IBM Plex Sans", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0b1017; --panel: #121a24; --ink: #e3e9f0; --muted: #8d9bab; --line: #243140;
+  --space: #04070b; --accent: #6aa2ff; --ok: #45c97f; --warn: #f0954a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0b1017; --panel: #121a24; --ink: #e3e9f0; --muted: #8d9bab; --line: #243140;
+  --space: #04070b; --accent: #6aa2ff; --ok: #45c97f; --warn: #f0954a; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); }
+.wrap { max-width: 1100px; margin: 0 auto; padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 16px; }
+header h1 { font-family: var(--display); font-size: 1.6rem; margin: 0; letter-spacing: .02em; text-wrap: balance; }
+header p { margin: 4px 0 0; color: var(--muted); max-width: 70ch; line-height: 1.5; }
+.bench { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+@media (max-width: 820px) { .bench { grid-template-columns: minmax(0, 1fr); } }
+.screen { background: var(--space); border-radius: 6px; padding: 10px; }
+canvas { display: block; width: 100%; max-width: 100%; aspect-ratio: 1; image-rendering: pixelated; }
+.side { display: grid; gap: 12px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; display: grid; gap: 10px; }
+.card h2 { margin: 0; font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-weight: 600; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+label { font-size: .9rem; }
+select, button, input[type=range] { font: inherit; }
+select, button { border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 4px; padding: 6px 10px; }
+button { cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.body-row { display: grid; grid-template-columns: 14px 1fr auto; gap: 8px; align-items: center; }
+.dot { width: 12px; height: 12px; transform: rotate(45deg); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: .85rem; }
+dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
+dt { color: var(--muted); font-size: .85rem; }
+dd { margin: 0; text-align: right; }
+.pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .75rem; font-weight: 600; border: 1px solid currentColor; }
+.pill.ok { color: var(--ok); } .pill.bad { color: var(--warn); }
+.note { color: var(--muted); font-size: .82rem; line-height: 1.5; margin: 0; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Three-Body Bench</h1>
+    <p>The chip's physics, step for step: the same integer maths, 1/r³ table and rounding as <span class="mono">model/nbody_model.py</span>. The world is a 256×256 wrap-around torus drawn at 2×.</p>
+  </header>
+
+  <div class="bench">
+    <div class="screen"><canvas id="world" width="512" height="512" aria-label="Simulation view"></canvas></div>
+
+    <div class="side">
+      <div class="card">
+        <h2>Scene</h2>
+        <div class="row">
+          <select id="scene">
+            <option value="sunearth">Sun + Earth (stable preset)</option>
+            <option value="chaos">Three-body chaos</option>
+          </select>
+          <button id="reset">Reset</button>
+        </div>
+        <div class="row">
+          <button id="run" class="primary">Pause</button>
+          <button id="step1">Step once</button>
+          <label class="row"><input type="checkbox" id="trails" checked> Trails</label>
+        </div>
+        <div class="row">
+          <label for="speed">Speed</label>
+          <input type="range" id="speed" min="0" max="8" value="4" style="flex:1;min-width:120px">
+          <span id="speedLbl" class="mono"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Masses</h2>
+        <div id="bodies" style="display:grid;gap:8px"></div>
+        <p class="note">Code 0 is massless: the body feels gravity but doesn't pull. Codes 1–7 are 1 to 64.</p>
+      </div>
+
+      <div class="card">
+        <h2>Readout</h2>
+        <dl class="mono">
+          <dt>Step</dt><dd id="rStep">0</dd>
+          <dt>Body 0–1 distance</dt><dd id="rSep">–</dd>
+          <dt>Range since reset</dt><dd id="rRange">–</dd>
+          <dt>Total momentum</dt><dd id="rMom">–</dd>
+        </dl>
+        <div class="row"><span>Model check</span><span id="check" class="pill">…</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- exact port of model/nbody_model.py hw2_step (V2: I=8 F=3 V=12 FV=10 G=6, M2=3, LB2=6, R2MIN=16)
+const I = 8, F = 3, V = 12, FV = 10, W = I + F;
+const LUT2 = [58, 49, 43, 37, 33, 29, 26, 24, 21, 17, 15, 13, 12, 10, 9, 8];
+function wrap(v, bits) { const m = 1 << bits; v = v & (m - 1); return v >= m / 2 ? v - m : v; }
+function ashr(v, sh) { if (sh <= 0) return v * (1 << -sh); return (v + (1 << (sh - 1))) >> sh; } // v >= 0 here
+function sat(v) { const lo = -(1 << (V - 1)), hi = (1 << (V - 1)) - 1; return Math.max(lo, Math.min(hi, v)); }
+function force(ax, ay, code) {
+  if (code === 0) return [0, 0];
+  const r2 = Math.max(ax * ax + ay * ay, 16);
+  const e2 = 31 - Math.clz32(r2), q = e2 >> 1, par = e2 & 1;
+  const m = (r2 >> (e2 - 3)) & 7;
+  return [LUT2[par * 8 + m], 3 * q + 6 + 6 - 6 - FV - (code - 1)];
+}
+function step(b, codes) {
+  const nv = [];
+  for (let i = 0; i < b.length; i++) {
+    let [xi, yi, vx, vy] = b[i];
+    for (let j = 0; j < b.length; j++) {
+      if (j === i) continue;
+      const DX = wrap(b[j][0] - xi, W), DY = wrap(b[j][1] - yi, W);
+      const ax = (Math.abs(DX) + (1 << (F - 1))) >> F, ay = (Math.abs(DY) + (1 << (F - 1))) >> F;
+      const [c, sh] = force(ax, ay, codes[j]);
+      const tx = ashr(c * ax, sh), ty = ashr(c * ay, sh);
+      vx = sat(vx + (DX >= 0 ? tx : -tx)); vy = sat(vy + (DY >= 0 ? ty : -ty));
+    }
+    nv.push([vx, vy]);
+  }
+  const mv = v => { const a = ashr(Math.abs(v), FV - F); return v >= 0 ? a : -a; };
+  return b.map(([x, y], i) => [wrap(x + mv(nv[i][0]), W), wrap(y + mv(nv[i][1]), W), nv[i][0], nv[i][1]]);
+}
+
+// ---- scenes (raw integers from the Python model)
+const SCENES = {
+  sunearth: { b: [[-10, 0, 0, -14], [630, 0, 0, 918], [-960, 960, 0, 0]], codes: [7, 1, 0] },
+  chaos:    { b: [[-200, 0, -210, -290], [200, 0, -210, 290], [0, -760, 420, 0]], codes: [4, 4, 4] },
+};
+const CHECK = { // state after 3 steps, from the Python model
+  sunearth: [[-10, 0, 0, -14], [630, 21, -30, 918], [-960, 960, 6, -6]],
+  chaos: [[-206, -6, -201, -293], [194, 6, -219, 287], [9, -760, 420, 6]],
+};
+function selfTest() {
+  return Object.keys(SCENES).every(k => {
+    let b = SCENES[k].b.map(r => r.slice());
+    for (let t = 0; t < 3; t++) b = step(b, SCENES[k].codes);
+    return JSON.stringify(b) === JSON.stringify(CHECK[k]);
+  });
+}
+
+// ---- UI
+const SPEEDS = [0.25, 0.5, 1, 2, 4, 8, 16, 32, 64];
+const NAMES = ["Body 0", "Body 1", "Body 2"];
+const COLORS = ["--b0", "--b1", "--b2"];
+const MASSLBL = c => c === 0 ? "massless" : String(1 << (c - 1));
+const $ = id => document.getElementById(id);
+const cv = $("world"), cx = cv.getContext("2d");
+let state, codes, stepN, running = true, acc = 0, sepLo, sepHi, trailCanvas;
+
+const bodiesEl = $("bodies");
+NAMES.forEach((n, i) => {
+  const row = document.createElement("div"); row.className = "body-row";
+  row.innerHTML = `<span class="dot" style="background:var(${COLORS[i]})"></span><label for="m${i}">${n}</label>
+    <select id="m${i}">${[0,1,2,3,4,5,6,7].map(c => `<option value="${c}">${c} · ${MASSLBL(c)}</option>`).join("")}</select>`;
+  bodiesEl.appendChild(row);
+  row.querySelector("select").addEventListener("change", e => { codes[i] = +e.target.value; });
+});
+
+function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function reset() {
+  const s = SCENES[$("scene").value];
+  state = s.b.map(r => r.slice()); codes = s.codes.slice(); stepN = 0; sepLo = Infinity; sepHi = 0;
+  codes.forEach((c, i) => { $("m" + i).value = c; });
+  trailCanvas = document.createElement("canvas"); trailCanvas.width = trailCanvas.height = 512;
+  draw(); readout();
+}
+function screenPos(x, y) { return [256 + 2 * x / 8, 256 + 2 * y / 8]; }
+function sep01() { return Math.hypot(wrap(state[1][0] - state[0][0], W), wrap(state[1][1] - state[0][1], W)) / 8; }
+function advance(n) {
+  const tc = trailCanvas.getContext("2d");
+  for (let k = 0; k < n; k++) {
+    state = step(state, codes); stepN++;
+    const d = sep01(); sepLo = Math.min(sepLo, d); sepHi = Math.max(sepHi, d);
+    if ($("trails").checked) state.forEach((b, i) => {
+      const [sx, sy] = screenPos(b[0], b[1]); tc.fillStyle = css(COLORS[i]); tc.globalAlpha = 0.35; tc.fillRect(sx, sy, 1, 1);
+    });
+  }
+}
+function draw() {
+  cx.fillStyle = css("--space"); cx.fillRect(0, 0, 512, 512);
+  if ($("trails").checked) cx.drawImage(trailCanvas, 0, 0);
+  state.forEach((b, i) => {
+    const [sx, sy] = screenPos(b[0], b[1]);
+    const r = codes[i] === 0 ? 2.5 : 3 + codes[i] * 0.9;
+    cx.fillStyle = css(COLORS[i]);
+    cx.beginPath(); cx.moveTo(sx, sy - r); cx.lineTo(sx + r, sy); cx.lineTo(sx, sy + r); cx.lineTo(sx - r, sy); cx.closePath(); cx.fill();
+  });
+}
+function readout() {
+  $("rStep").textContent = stepN.toLocaleString();
+  const d = sep01();
+  $("rSep").textContent = d.toFixed(2) + " px";
+  $("rRange").textContent = stepN ? `${sepLo.toFixed(1)}–${sepHi.toFixed(1)} px` : "–";
+  let px = 0, py = 0;
+  state.forEach((b, i) => { const m = codes[i] ? 1 << (codes[i] - 1) : 0; px += m * b[2]; py += m * b[3]; });
+  $("rMom").textContent = `${px}, ${py}`;
+}
+function frame() {
+  if (running) {
+    acc += SPEEDS[+$("speed").value];
+    const n = Math.floor(acc); acc -= n;
+    if (n) advance(n);
+  }
+  draw(); readout();
+  requestAnimationFrame(frame);
+}
+function speedLbl() { const s = SPEEDS[+$("speed").value]; $("speedLbl").textContent = s < 1 ? `1 step / ${1 / s} frames` : `${s} steps / frame`; }
+
+$("scene").addEventListener("change", reset);
+$("reset").addEventListener("click", reset);
+$("run").addEventListener("click", () => { running = !running; $("run").textContent = running ? "Pause" : "Run"; });
+$("step1").addEventListener("click", () => { advance(1); });
+$("speed").addEventListener("input", speedLbl);
+$("trails").addEventListener("change", () => { trailCanvas.getContext("2d").clearRect(0, 0, 512, 512); });
+
+const ok = selfTest();
+$("check").textContent = ok ? "matches Python model" : "MISMATCH";
+$("check").className = "pill " + (ok ? "ok" : "bad");
+speedLbl(); reset(); requestAnimationFrame(frame);
+</script>
