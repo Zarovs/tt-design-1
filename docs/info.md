@@ -1,20 +1,21 @@
-<!---
-
-This file is used to generate your project datasheet. Please fill in the information below and delete any unused
-sections.
-
-You can also include images in this folder and reference them in the markdown. Each image must be less than
-512 kb in size, and the combined size of all images must be less than 1 MB.
--->
-
 ## How it works
 
-Explain how your project works
+A solar system drawn on a 640x480 VGA screen, computed pixel by pixel as the beam scans (there is no framebuffer).
+
+- The squared distance from each pixel to the screen centre is tracked incrementally with adders only. Comparing it against constants draws the sun (with a shimmering corona) and the orbit rings.
+- Mercury, Venus, Earth (with its Moon) and Mars move on Minsky circles (`x -= y>>>k; y += x>>>k`), updated during vertical blanking. These orbits are exactly periodic. The periods come out as 1/4, 1/2, 1 and 2 Earth years.
+- Each planet is a small disk tested inside a 16x16 window around its position.
+- A 19-bit LFSR, advanced 9 steps per pixel and restarted each frame, gives a fixed starfield with a few twinkling stars.
 
 ## How to test
 
-Explain how to use your project
+Connect a TinyVGA PMOD to the outputs and a monitor to it, and set the clock to 25.175 MHz.
+
+- `ui[0]` pauses the motion.
+- `ui[2:1]` set the speed: 1, 2, 4 or 8 orbit steps per frame.
+- `ui[3]` hides the orbit rings.
+- `ui[4]` hides the stars.
 
 ## External hardware
 
-List external hardware used in your project (e.g. PMOD, LED display, etc), if any
+TinyVGA PMOD, VGA monitor.
