@@ -228,6 +228,7 @@ def hw_scene(p=HW):
 #  - mass codes: 0 = massless, c > 0 = 2^(c-1) (1..64), gravity scale GA
 #  - per-pass clamping: a term >= 2048 or a sum outside 12 bits saturates
 GA = 3          # extra right shift vs the old G=3 physics (weaker gravity for heavy masses)
+SH_MIN = -4     # softening: shifts never go below -4, so round(M >> sh) always fits 12 bits
 
 
 def forceA(mx, my, code):
@@ -239,31 +240,28 @@ def forceA(mx, my, code):
     e = max(o.bit_length() - 1, 2)
     m = (o >> (e - 2)) & 3 if o.bit_length() - 1 >= 2 else 0
     lut = [6, 3, 2, 1][m]
-    return [3 * e - 10 + GA - (code - 1) - k for k in range(3) if (lut >> k) & 1]
+    return [max(3 * e - 10 + GA - (code - 1) - k, SH_MIN) for k in range(3) if (lut >> k) & 1]
 
 
 def addA(v, neg, M, sh):
-    """v + sign * round(M >> sh), saturating, exactly as the hardware does it:
-    T' = M >> sh (truncated) >= 2048 saturates toward the sign; otherwise the
-    13-bit sum v +- (T' + rounding bit) saturates if it leaves 12 bits."""
+    """v + sign * round(M >> sh), exactly as the hardware does it. M < 2^(e+1) and
+    sh >= SH_MIN keep the kick below 2^11; if the 12-bit sum overflows, the
+    hardware runs the pass again with the opposite sign, so v stays as it was."""
     if sh > 0:
-        Tt, rb = M >> sh, (M >> (sh - 1)) & 1
+        T = (M >> sh) + ((M >> (sh - 1)) & 1)
     else:
-        Tt, rb = M << -sh, 0
-    if Tt >= 2048:
-        return -2048 if neg else 2047
-    r = v - (Tt + rb) if neg else v + (Tt + rb)
-    if r > 2047:
-        return 2047
-    if r < -2048:
-        return -2048
-    return r
+        T = M << -sh
+    assert T < 2048
+    r = v - T if neg else v + T
+    return (v, True) if r > 2047 or r < -2048 else (r, False)
 
 
-def hwA_step(bodies, codes):
+def hwA_step(bodies, codes, stats=None):
+    """one step; stats (a list) collects the number of undo passes"""
     W = 11
     n = len(bodies)
     newv = []
+    undo = 0
     for i in range(n):
         xi, yi, vx, vy = bodies[i]
         for j in range(n):
@@ -271,13 +269,37 @@ def hwA_step(bodies, codes):
                 continue
             DX = wrap(bodies[j][0] - xi, W)
             DY = wrap(bodies[j][1] - yi, W)
-            mx, my = abs(DX) >> 3, abs(DY) >> 3
+            # 7-bit magnitudes: exactly half the world apart (|D| = 1024) gives 0
+            mx, my = (abs(DX) >> 3) & 127, (abs(DY) >> 3) & 127
             for sh in forceA(mx, my, codes[j]):
-                vx = addA(vx, DX < 0, mx, sh)
-                vy = addA(vy, DY < 0, my, sh)
+                vx, ox = addA(vx, DX < 0, mx, sh)
+                vy, oy = addA(vy, DY < 0, my, sh)
+                undo += ox or oy
         newv.append((vx, vy))
+    if stats is not None:
+        stats.append(undo)
     return [(wrap(x + ashr(vx, 7, True), W), wrap(y + ashr(vy, 7, True), W), vx, vy)
             for (x, y, _, _), (vx, vy) in zip(bodies, newv)]
+
+
+# clocks per step in the RTL: 6 pairs x (11 D + 7 ABS + 3 x 13 A) + 3 x 12 P, + 13 per undo pass
+STEP_CLOCKS = 6 * (11 + 7 + 3 * 13) + 3 * 12
+UNDO_CLOCKS = 13
+
+
+def hwA_frame(bodies, codes, speed, frame):
+    """all steps the RTL runs in one frame's vertical blanking"""
+    fc = frame & 3
+    if speed == 0 and fc != 0 or speed == 1 and fc % 2:
+        return bodies
+    x = 0                       # clock offset from the start line (vpos 480, hpos 0)
+    while True:
+        st = []
+        bodies = hwA_step(bodies, codes, st)
+        x += STEP_CLOCKS + UNDO_CLOCKS * st[0]
+        line = x // 800         # line of the last S_P clock
+        if speed <= 2 or line >= (1 << (speed - 3)):
+            return bodies
 
 
 def fixA(x, y, vx, vy):

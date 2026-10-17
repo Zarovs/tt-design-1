@@ -1,36 +1,24 @@
 #!/usr/bin/env python3
-"""Compare the RTL state dump (sim/obj_nb) with model hw_step, frame by frame.
-Usage: check_rtl.py <ui_in> <uio_in> <frames>"""
+"""Compare the RTL state dump (sim/obj_nb) with model hwA_frame, frame by frame.
+Usage: check_rtl.py <scene 0|1> <code0|-1> <code1|-1> <code2|-1> <speed 0..7> <frames>
+A code of -1 keeps the scene's default mass."""
 import subprocess, sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import nbody_model as M
 
-ui, uio, frames = int(sys.argv[1], 0), int(sys.argv[2], 0), int(sys.argv[3])
+scene, c0, c1, c2, speed, frames = map(int, sys.argv[1:7])
 exe = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "sim", "obj_nb", "Vtt_um_zarovs_nbody")
-out = subprocess.run([exe, hex(ui), hex(uio), str(frames)], capture_output=True, text=True, check=True).stdout.split("\n")
-masses = [1 << ((ui >> (2 * b)) & 3) for b in range(3)]
-pause = (ui >> 6) & 1
-spd = (uio & 7) ^ 3
-STEP_CLOCKS = 6 * (11 + 3 * 13) + 3 * 12          # D + 3 A passes per pair, then P
+out = subprocess.run([exe] + sys.argv[1:7], capture_output=True, text=True, check=True).stdout.split("\n")
 
-def steps_per_frame():
-    # a step starts on the clock after (vpos 480, hpos 0); another follows while
-    # (vpos - 480) < 2^spd and < 43 on the last clock of the previous step
-    n, pos = 0, 480 * 800 + 1
-    while True:
-        n += 1
-        last = pos + STEP_CLOCKS - 1
-        vline = last // 800 - 480
-        if not (vline < (1 << spd) and vline < 43):
-            return n
-        pos += STEP_CLOCKS
+SCENES = {0: ([(-200, 0, -210, -290), (200, 0, -210, 290), (0, -760, 420, 0)], [4, 4, 4]),
+          1: ([(-11, 0, 0, -14), (685, 0, 0, 880), (-960, 960, 0, 0)], [7, 1, 0])}
+b, codes = SCENES[scene]
+codes = [d if c < 0 else c for c, d in zip((c0, c1, c2), codes)]
 
-steps = 0 if pause else steps_per_frame()
-b = M.hw_scene()
+
 bad = 0
 for f in range(frames):
-    for _ in range(steps):
-        b = M.hw_step(b, masses)
+    b = M.hwA_frame(b, codes, speed, f)
     got = list(map(int, out[f].split()))
     exp = []
     for (x, y, vx, vy) in b:
@@ -38,5 +26,5 @@ for f in range(frames):
     if got != exp:
         bad += 1
         if bad <= 3:
-            print(f"frame {f}: MISMATCH\n  rtl  {got}\n  model {exp}")
-print(f"{frames - bad}/{frames} frames match (masses {masses}, {steps} steps/frame)")
+            print(f"frame {f}: MISMATCH\n  rtl   {got}\n  model {exp}")
+print(f"{frames - bad}/{frames} frames match (scene {scene}, codes {codes}, speed {speed})")
