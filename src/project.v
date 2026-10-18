@@ -95,7 +95,6 @@ module tt_um_zarovs_nbody (
   localparam S_IDLE = 3'd0, S_D = 3'd1, S_ABS = 3'd2, S_A = 3'd3, S_U = 3'd4, S_P = 3'd5,
              S_INIT = 3'd6;
   reg [2:0] state;
-  reg [3:0] steps_left; // steps still to run this frame
   reg [3:0] t;          // clock within a pass
   reg [2:0] pair;       // 0..5: (0,1) (0,2) (1,0) (1,2) (2,0) (2,1)
   reg [2:0] k;          // LUT bit being applied
@@ -213,6 +212,9 @@ module tt_um_zarovs_nbody (
   wire ovx = cin_x ^ cox, ovy = cin_y ^ coy;
 
   wire start = (vpos == 10'd480) && (hpos == 10'd0);
+  // keep starting steps while in the first 2 (or 8) lines of blanking: ~3 (~12) steps
+  wire [5:0] vline = vpos[5:0] - 6'd32;     // vpos - 480 for vpos in 480..524
+  wire       more  = fast ? (vline < 6'd8) : (vline < 6'd2);
 
   // ------------------------------------------- gated state registers
   // Each body's position pair and velocity pair sit on their own gated clock,
@@ -291,7 +293,7 @@ module tt_um_zarovs_nbody (
         end
 
         S_IDLE: if (start) begin
-          state <= S_D; t <= 4'd0; pair <= 3'd0; steps_left <= fast ? 4'd11 : 4'd2;
+          state <= S_D; t <= 4'd0; pair <= 3'd0;
         end
 
         // D = r_j - r_i: note whether D[2:0] == 0, keep D[10:3]
@@ -326,9 +328,7 @@ module tt_um_zarovs_nbody (
           if (t == 4'd11) begin
             t <= 4'd0;
             if (pair != 3'd4) pair <= pair + 3'd2;
-            else if (steps_left != 4'd0) begin
-              steps_left <= steps_left - 4'd1; state <= S_D; pair <= 3'd0;
-            end
+            else if (more) begin state <= S_D; pair <= 3'd0; end
             else state <= S_IDLE;
           end else t <= t + 4'd1;
         end
@@ -351,7 +351,7 @@ module tt_um_zarovs_nbody (
   wire [7:0] d1x = wx - px[1][P-1:3], d1y = wy - py[1][P-1:3];
   wire [7:0] d2x = wx - px[2][P-1:3], d2y = wy - py[2][P-1:3];
   // bodies only inside the 512-pixel world window (no wrapped ghosts outside it)
-  wire in_world = (hpos >= 10'd64) && (hpos < 10'd576);
+  wire in_world = 1'b1;   // wrapped copies show in the screen margins
 
   // one shared shape test: the first body whose window holds this pixel
   wire w0 = in_world && (d0x[7:3] == 5'd0) && (d0y[7:3] == 5'd0);
