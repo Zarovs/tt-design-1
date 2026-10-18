@@ -1,7 +1,8 @@
 // Dumps the 3-body state after each frame's physics, for comparison with
-// model/nbody_model.py hwA_step.
-// Usage: nbody_state <scene 0|1> <code0> <code1> <code2> <speed 0..7> <frames>
-// Masses are programmed through the menu (ui[0]=1, body select, ui[6:4]=code).
+// model/nbody_model.py hwB_frame.
+// Usage: nbody_state <scene 0|1> <sw0> <sw1> <sw2> <fast 0|1> <frames>
+// Masses come straight from the switches (2 bits per body); scene 1 is started
+// by pulsing ui[7] after reset.
 #include "Vtt_um_zarovs_nbody.h"
 #include "Vtt_um_zarovs_nbody___024root.h"
 #include "verilated.h"
@@ -10,18 +11,14 @@
 static Vtt_um_zarovs_nbody *top;
 static void tick(int n) { while (n--) { top->clk = 0; top->eval(); top->clk = 1; top->eval(); } }
 int main(int argc, char **argv) {
-  int scene = atoi(argv[1]), c[3] = {atoi(argv[2]), atoi(argv[3]), atoi(argv[4])};
-  int speed = atoi(argv[5]), frames = atoi(argv[6]);
+  int scene = atoi(argv[1]), sw[3] = {atoi(argv[2]), atoi(argv[3]), atoi(argv[4])};
+  int fast = atoi(argv[5]), frames = atoi(argv[6]);
+  int ui = sw[0] | (sw[1] << 2) | (sw[2] << 4) | (fast << 6);
   top = new Vtt_um_zarovs_nbody;
-  top->ena = 1; top->uio_in = 0;
-  top->ui_in = scene << 3;                 // scene on ui[3], menu off
+  top->ena = 1; top->uio_in = 0; top->ui_in = ui;
   top->rst_n = 0; tick(10); top->rst_n = 1;
   int used = 0;
-  for (int b = 0; b < 3; b++) if (c[b] >= 0) {   // menu on, select body b, code on ui[6:4]
-    top->ui_in = 1 | (1 << (1 + b)) | (c[b] << 4); tick(4); used += 4;
-  }
-  top->ui_in = speed << 4;                 // menu off: pause 0, speed
-  tick(4); used += 4;
+  if (scene) { top->ui_in = ui | 0x80; tick(5); top->ui_in = ui; used += 5; }
   auto *r = top->rootp;
   tick(800 * 525 - used);
   for (int f = 0; f < frames; f++) {

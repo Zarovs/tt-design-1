@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Three-body gravity simulator for Tiny Tapeout (1x1 tile), VGA 640x480.
- * Bit-exact with model/nbody_model.py hwA_frame. All arithmetic is bit-serial
+ * Bit-exact with model/nbody_model.py hwB_frame. All arithmetic is bit-serial
  * (the state registers rotate past two 1-bit adders, one per axis) and runs
  * during vertical blanking.
  *
@@ -19,12 +19,9 @@
  * The pull of j on i is exactly minus the pull of i on j, so momentum is conserved.
  * Then every position moves by round(v >> 7).
  *
- * Controls (ui):  ui[0] = menu
- *   menu off: ui[1] pause, ui[6:4] speed, ui[3] scene (read at reset)
- *   menu on:  ui[1..3] select body 0..2, ui[6:4] mass code for the selected bodies
- * Mass code 0 = massless, 1..7 = mass 1, 2, 4 ... 64.
- * Speed 0: 1 step every 4 frames, 1: every 2nd frame, 2: 1 per frame, 3..7: about 2, 3, 6, 12, 24 per frame.
- * Scenes: 0 = three-body chaos (masses 8, 8, 8), 1 = Sun + Earth (64, 1, massless).
+ * Controls (ui): ui[1:0], ui[3:2], ui[5:4] = mass of body 0, 1, 2 (massless, 1, 8, 64),
+ *   ui[6] = 4x speed (12 steps per frame instead of 3), ui[7] = restart as Sun + Earth.
+ * Scenes: reset = three-body chaos (all bodies 10), ui[7] = Sun + Earth (body 0 = 11, body 1 = 01, body 2 = 00).
  */
 
 `default_nettype none
@@ -65,45 +62,28 @@ module tt_um_zarovs_nbody (
   wire vsync   = ~((vpos >= 10'd490) && (vpos < 10'd492));
 
   // ------------------------------------------------------------- controls
-  // Settings live in latches: transparent while their menu is active, held
-  // otherwise. During reset the mass latches load the scene's defaults.
-  wire menu = ui_in[0];
-  reg  scene;                      // captured during reset from ui[3]
-  always @(posedge clk) if (!rst_n) scene <= ui_in[3];
+  // ui[1:0], ui[3:2], ui[5:4]: mass of body 0, 1, 2 (massless, 1, 8, 64), live
+  function automatic [2:0] msw(input [1:0] v);
+    case (v)
+      2'd0:    msw = 3'd0;
+      2'd1:    msw = 3'd1;
+      2'd2:    msw = 3'd4;
+      default: msw = 3'd7;
+    endcase
+  endfunction
+  wire [2:0] mcode0 = msw(ui_in[1:0]);
+  wire [2:0] mcode1 = msw(ui_in[3:2]);
+  wire [2:0] mcode2 = msw(ui_in[5:4]);
+  wire       fast   = ui_in[6];        // 12 steps per frame instead of 3
 
-  reg [2:0] mcode0, mcode1, mcode2, spd;
-  reg       pause;
-  wire [2:0] def0 = scene ? 3'd7 : 3'd4;
-  wire [2:0] def1 = scene ? 3'd1 : 3'd4;
-  wire [2:0] def2 = scene ? 3'd0 : 3'd4;
-  /* verilator lint_off LATCH */
-  always @(*) begin
-    if (!rst_n)                 mcode0 = def0;
-    else if (menu && ui_in[1])  mcode0 = ui_in[6:4];
-  end
-  always @(*) begin
-    if (!rst_n)                 mcode1 = def1;
-    else if (menu && ui_in[2])  mcode1 = ui_in[6:4];
-  end
-  always @(*) begin
-    if (!rst_n)                 mcode2 = def2;
-    else if (menu && ui_in[3])  mcode2 = ui_in[6:4];
-  end
-  always @(*) begin
-    if (!menu) begin spd = ui_in[6:4]; pause = ui_in[1]; end
-  end
-  /* verilator lint_on LATCH */
-
-  // frame divider for the slow speeds
-  reg [1:0] fc;
+  // ui[7] restarts the Sun + Earth scene (while held); reset starts the chaos scene
+  reg  restart;
+  always @(posedge clk) restart <= ui_in[7];
+  reg  scene;
   always @(posedge clk) begin
-    if (!rst_n) fc <= 2'd0;
-    else if (hlast && vlast) fc <= fc + 2'd1;
+    if (!rst_n)       scene <= 1'b0;
+    else if (restart) scene <= 1'b1;
   end
-  wire frame_on = (spd == 3'd0) ? (fc == 2'd0) : (spd == 3'd1) ? !fc[0] : 1'b1;
-  // fast speeds: keep starting steps while within the first 2^(spd-3) lines of blanking
-  wire [5:0] vline = vpos[5:0] - 6'd32;     // vpos - 480 for vpos in 480..524
-  wire       more  = (spd >= 3'd3) && ((vline >> (spd - 3'd3)) == 6'd0);
 
   // ------------------------------------------------------- body state
   wire [P-1:0] px [0:2];
@@ -115,6 +95,7 @@ module tt_um_zarovs_nbody (
   localparam S_IDLE = 3'd0, S_D = 3'd1, S_ABS = 3'd2, S_A = 3'd3, S_U = 3'd4, S_P = 3'd5,
              S_INIT = 3'd6;
   reg [2:0] state;
+  reg [3:0] steps_left; // steps still to run this frame
   reg [3:0] t;          // clock within a pass
   reg [2:0] pair;       // 0..5: (0,1) (0,2) (1,0) (1,2) (2,0) (2,1)
   reg [2:0] k;          // LUT bit being applied
@@ -231,7 +212,7 @@ module tt_um_zarovs_nbody (
   // last clock of an S_A pass: signed overflow = carry into bit 11 != carry out
   wire ovx = cin_x ^ cox, ovy = cin_y ^ coy;
 
-  wire start = !pause && frame_on && (vpos == 10'd480) && (hpos == 10'd0);
+  wire start = (vpos == 10'd480) && (hpos == 10'd0);
 
   // ------------------------------------------- gated state registers
   // Each body's position pair and velocity pair sit on their own gated clock,
@@ -297,7 +278,7 @@ module tt_um_zarovs_nbody (
   wire a_done = (t == 4'd12);
 
   always @(posedge clk) begin
-    if (!rst_n) begin
+    if (!rst_n || restart) begin
       state <= S_INIT; t <= 4'd0; pair <= 3'd0; k <= 3'd0;
     end else begin
       // serial carries; an S_A / S_U pass starts with n ^ rounding bit
@@ -310,7 +291,7 @@ module tt_um_zarovs_nbody (
         end
 
         S_IDLE: if (start) begin
-          state <= S_D; t <= 4'd0; pair <= 3'd0;
+          state <= S_D; t <= 4'd0; pair <= 3'd0; steps_left <= fast ? 4'd11 : 4'd2;
         end
 
         // D = r_j - r_i: note whether D[2:0] == 0, keep D[10:3]
@@ -345,7 +326,9 @@ module tt_um_zarovs_nbody (
           if (t == 4'd11) begin
             t <= 4'd0;
             if (pair != 3'd4) pair <= pair + 3'd2;
-            else if (more) begin state <= S_D; pair <= 3'd0; end
+            else if (steps_left != 4'd0) begin
+              steps_left <= steps_left - 4'd1; state <= S_D; pair <= 3'd0;
+            end
             else state <= S_IDLE;
           end else t <= t + 4'd1;
         end

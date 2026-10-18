@@ -315,3 +315,15 @@ def fixA(x, y, vx, vy):
     """px, px/step -> raw state (positions 8.3, velocities 2.10)"""
     s = lambda v: max(-2048, min(2047, round(v * 1024)))
     return (wrap(round(x * 8), 11), wrap(round(y * 8), 11), s(vx), s(vy))
+
+
+# Lite: masses straight from two switches per body, fixed step counts
+MASS_SW = [0, 1, 4, 7]          # switch value -> mass code: massless, 1, 8, 64
+
+
+def hwB_frame(bodies, switches, fast):
+    """one frame of the lite chip: 3 steps, or 12 with the speed-up switch"""
+    codes = [MASS_SW[v] for v in switches]
+    for _ in range(12 if fast else 3):
+        bodies = hwA_step(bodies, codes)
+    return bodies

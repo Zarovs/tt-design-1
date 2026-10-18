@@ -78,8 +78,8 @@ async def test_vsync(dut):
 
 @cocotb.test()
 async def test_start_scene(dut):
-    # chaos scene: body 0 at world (-25, 0) -> screen (270, 240); body 1 at (25, 0)
-    # -> (370, 240); body 2 at (0, -95) -> (320, 50)
+    # reset gives the chaos scene: body 0 at world (-25, 0) -> screen (270, 240);
+    # body 1 at (25, 0) -> (370, 240); body 2 at (0, -95) -> (320, 50)
     beam = await start(dut)
     assert (await beam.goto(0, 320, 50))["rgb"] == PINK
     assert (await beam.goto(0, 270, 240))["rgb"] == YELLOW
@@ -88,42 +88,40 @@ async def test_start_scene(dut):
 
 
 @cocotb.test()
-async def test_sun_earth_scene(dut):
-    # ui[3] at reset picks the Sun + Earth scene: Sun (mass 64, 16 px square) at
-    # world (-2, 0) -> screen (316, 240), Earth (mass 1, 4 px) at (92, 0) -> (504, 240)
-    beam = await start(dut, ui=0b1000)
+async def test_mass_switches_size(dut):
+    # ui[1:0] = 2 (mass 8): body 0 is an 8 px square around x = 270
+    beam = await start(dut, ui=0b10)
+    assert (await beam.goto(0, 266, 240))["rgb"] == YELLOW
+
+
+@cocotb.test()
+async def test_mass_switches_small(dut):
+    # ui[1:0] = 1 (mass 1): a 4 px square
+    beam = await start(dut, ui=0b01)
+    assert (await beam.goto(0, 266, 240))["rgb"] == BLACK
+    assert (await beam.goto(0, 270, 240))["rgb"] == YELLOW
+
+
+@cocotb.test()
+async def test_restart_sun_earth(dut):
+    # ui[7] restarts as Sun + Earth: Sun (switches 11 = mass 64, 16 px) at world
+    # (-2, 0) -> screen (316, 240), Earth (01 = mass 1, 4 px) at (92, 0) -> (504, 240)
+    sw = 0b00_01_11
+    beam = await start(dut, ui=sw)
+    await beam.goto(0, 0, 100)
+    dut.ui_in.value = sw | 0x80
+    await beam.goto(0, 10, 100)
+    dut.ui_in.value = sw
     assert (await beam.goto(0, 312, 240))["rgb"] == YELLOW
-    assert (await beam.goto(0, 316, 240))["rgb"] == YELLOW
     assert (await beam.goto(0, 400, 240))["rgb"] == BLACK
     assert (await beam.goto(0, 504, 240))["rgb"] == CYAN
     assert (await beam.goto(0, 508, 240))["rgb"] == BLACK   # Earth is small
 
 
 @cocotb.test()
-async def test_menu_sets_mass(dut):
-    # paused; menu on (ui[0]), body 0 selected (ui[1]), mass code 1 on ui[6:4]:
-    # body 0 shrinks from an 8 px square (mass 8) to a 4 px one (mass 1)
-    beam = await start(dut, ui=0b0000_0010)
-    assert (await beam.goto(0, 266, 240))["rgb"] == YELLOW
-    dut.ui_in.value = 0b0001_0011
-    await beam.goto(0, 0, 300)
-    dut.ui_in.value = 0b0000_0010          # menu off, still paused
-    assert (await beam.goto(1, 266, 240))["rgb"] == BLACK
-    assert (await beam.goto(1, 270, 240))["rgb"] == YELLOW
-
-
-@cocotb.test()
-async def test_pause_holds(dut):
-    # paused (ui[1] with the menu off): the third body is still at its start
-    # position frames later
-    beam = await start(dut, ui=0b0000_0010)
-    assert (await beam.goto(3, 320, 50))["rgb"] == PINK
-
-
-@cocotb.test()
 async def test_bodies_move(dut):
-    # fastest speed (ui[6:4] = 7, ~34 steps per frame): after a few frames the
-    # third body (vx = 0.41 px/step) has left its start position
-    beam = await start(dut, ui=0b0111_0000)
+    # 4x speed (ui[6], 12 steps per frame): after a few frames the third body
+    # (vx = 0.41 px/step) has left its start position
+    beam = await start(dut, ui=0b0100_0000)
     assert (await beam.goto(0, 320, 50))["rgb"] == PINK
     assert (await beam.goto(3, 320, 50))["rgb"] != PINK
